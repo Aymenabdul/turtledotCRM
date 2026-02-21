@@ -29,6 +29,8 @@ try {
             full_name VARCHAR(255),
             role VARCHAR(50) DEFAULT 'user',
             is_active BOOLEAN DEFAULT TRUE,
+            two_fa_secret VARCHAR(32) NULL,
+            two_fa_enabled BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_login TIMESTAMP NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

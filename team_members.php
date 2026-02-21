@@ -1,0 +1,1197 @@
+<?php
+require_once __DIR__ . '/auth_middleware.php';
+require_once __DIR__ . '/src/layouts/base_layout.php';
+require_once __DIR__ . '/config.php';
+
+// Require authentication and ensure user is an admin
+$user = AuthMiddleware::requireAuth();
+
+if ($user['role'] !== 'admin') {
+    header('Location: /index.php');
+    exit;
+}
+
+// Start session if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+$teamId = isset($_GET['id']) ? intval($_GET['id']) : 0;
+
+if (!$teamId) {
+    header('Location: /manage_teams.php');
+    exit;
+}
+
+// Fetch team details
+$stmt = $pdo->prepare("SELECT * FROM teams WHERE id = ?");
+$stmt->execute([$teamId]);
+$team = $stmt->fetch();
+
+if (!$team) {
+    header('Location: /manage_teams.php');
+    exit;
+}
+
+// Handle Member Actions
+$message = $_SESSION['success_message'] ?? '';
+$error = $_SESSION['error_message'] ?? '';
+unset($_SESSION['success_message'], $_SESSION['error_message']);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    if ($_POST['action'] === 'add_member') {
+        $fullName = $_POST['full_name'];
+        $email = $_POST['email'];
+        $username = $_POST['username'];
+        $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
+        $role = $team['name'];
+
+        try {
+            $prefix = strtoupper(substr($team['name'], 0, 3));
+            $stmt = $pdo->prepare("SELECT unique_id FROM users WHERE unique_id LIKE ? AND unique_id REGEXP ? ORDER BY unique_id DESC LIMIT 1");
+            $pattern = "^" . $prefix . "[0-9]{3}$";
+            $stmt->execute([$prefix . '%', $pattern]);
+            $lastId = $stmt->fetchColumn();
+
+            if ($lastId) {
+                $numStr = substr($lastId, 3);
+                $number = intval($numStr) + 1;
+            } else {
+                $number = 1;
+            }
+            $uniqueId = $prefix . str_pad($number, 3, '0', STR_PAD_LEFT);
+
+            $stmt = $pdo->prepare("INSERT INTO users (unique_id, username, email, password, full_name, role, team_id, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, 1)");
+            $stmt->execute([$uniqueId, $username, $email, $password, $fullName, $role, $teamId]);
+            $_SESSION['success_message'] = "Operative deployed successfully with ID: " . $uniqueId;
+        } catch (PDOException $e) {
+            $_SESSION['error_message'] = "Error: " . $e->getMessage();
+        }
+    } elseif ($_POST['action'] === 'reset_password') {
+        $targetId = intval($_POST['user_id']);
+        $newPasswordRaw = $_POST['new_password'];
+        $newPassword = password_hash($newPasswordRaw, PASSWORD_DEFAULT);
+        $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ? AND team_id = ?");
+        if ($stmt->execute([$newPassword, $targetId, $teamId])) {
+            $_SESSION['success_message'] = "Tactical encryption key updated successfully.";
+        }
+    } elseif ($_POST['action'] === 'toggle_status') {
+        $targetId = intval($_POST['user_id']);
+        $currentStatus = intval($_POST['current_status']);
+        $newStatus = $currentStatus ? 0 : 1;
+        $stmt = $pdo->prepare("UPDATE users SET is_active = ? WHERE id = ? AND team_id = ?");
+        if ($stmt->execute([$newStatus, $targetId, $teamId])) {
+            $_SESSION['success_message'] = $newStatus ? "Operative reactivated." : "Operative deactivated.";
+        }
+    } elseif ($_POST['action'] === 'delete_member') {
+        $targetId = intval($_POST['user_id']);
+        $stmt = $pdo->prepare("DELETE FROM users WHERE id = ? AND team_id = ?");
+        if ($stmt->execute([$targetId, $teamId])) {
+            $_SESSION['success_message'] = "Operative purged from system.";
+        }
+    }
+
+    // Redirect to prevent form resubmission
+    $redirectUrl = "team_members.php?id=" . $teamId;
+    if (isset($_GET['p']))
+        $redirectUrl .= "&p=" . $_GET['p'];
+    if (isset($_GET['q']))
+        $redirectUrl .= "&q=" . urlencode($_GET['q']);
+    header("Location: " . $redirectUrl);
+    exit;
+}
+
+// Search Filter Logic
+$search = isset($_GET['q']) ? trim($_GET['q']) : '';
+$whereClause = "WHERE team_id = ?";
+$params = [$teamId];
+
+if ($search !== '') {
+    $whereClause .= " AND (full_name LIKE ? OR username LIKE ? OR unique_id LIKE ?)";
+    $searchTerm = "%$search%";
+    $params[] = $searchTerm;
+    $params[] = $searchTerm;
+    $params[] = $searchTerm;
+}
+
+// Pagination Logic
+$limit = 5;
+$page = isset($_GET['p']) ? max(1, intval($_GET['p'])) : 1;
+$offset = ($page - 1) * $limit;
+
+// Fetch total count
+$stmtCount = $pdo->prepare("SELECT COUNT(*) FROM users $whereClause");
+$stmtCount->execute($params);
+$totalMembers = $stmtCount->fetchColumn();
+$totalPages = ceil($totalMembers / $limit);
+
+// Fetch team members with limit (Ascending Order)
+$stmt = $pdo->prepare("SELECT * FROM users $whereClause ORDER BY created_at ASC LIMIT ? OFFSET ?");
+foreach ($params as $k => $v) {
+    $stmt->bindValue($k + 1, $v);
+}
+$stmt->bindValue(count($params) + 1, $limit, PDO::PARAM_INT);
+$stmt->bindValue(count($params) + 2, $offset, PDO::PARAM_INT);
+$stmt->execute();
+$members = $stmt->fetchAll();
+
+// Dynamic Branding (Premium Light Gradients)
+$gradientSchemes = [
+    ['#34d399', '#10b981'], // Emerald
+    ['#60a5fa', '#3b82f6'], // blue
+    ['#a78bfa', '#8b5cf6'], // violet
+    ['#fbbf24', '#f59e0b'], // amber
+    ['#fb7185', '#f43f5e'], // rose
+    ['#22d3ee', '#06b6d4'], // cyan
+    ['#f472b6', '#ec4899'], // pink
+    ['#818cf8', '#6366f1'], // indigo
+    ['#fb923c', '#f97316']  // orange
+];
+$schemeIndex = abs(crc32($team['name'])) % count($gradientSchemes);
+$teamColorPrimary = $gradientSchemes[$schemeIndex][0];
+$teamColorSecondary = $gradientSchemes[$schemeIndex][1];
+
+$GLOBALS['currentPage'] = 'teams';
+startLayout($team['name'] . ' Hub', $user);
+?>
+
+<style>
+    :root {
+        --team-color:
+            <?php echo $teamColorPrimary; ?>
+        ;
+        --team-color-secondary:
+            <?php echo $teamColorSecondary; ?>
+        ;
+        --team-gradient: linear-gradient(135deg,
+                <?php echo $teamColorPrimary; ?>
+                0%,
+                <?php echo $teamColorSecondary; ?>
+                100%);
+        --team-color-light:
+            <?php echo $teamColorPrimary; ?>
+            10;
+        --team-color-border:
+            <?php echo $teamColorPrimary; ?>
+            25;
+        --glass-bg: rgba(255, 255, 255, 0.7);
+        --glass-border: rgba(255, 255, 255, 0.5);
+        --glass-shadow: 0 10px 40px rgba(0, 0, 0, 0.02);
+    }
+
+    html,
+    body {
+        overflow: hidden;
+        height: 100vh;
+        margin: 0;
+    }
+
+    /* Hub Scroller for fixed viewport */
+    #layout-content {
+        height: 100vh;
+        overflow-y: auto;
+        padding-bottom: 2rem;
+    }
+
+    /* Main Content Padding Override */
+    .main-content {
+        padding: 1.5rem 2rem !important;
+        max-width: 1600px !important;
+    }
+
+    /* Floating Background Blobs */
+    .tactical-bg-blob {
+        position: fixed;
+        width: 600px;
+        height: 600px;
+        background: radial-gradient(circle, var(--team-color-light) 0%, transparent 70%);
+        top: -10%;
+        right: -10%;
+        z-index: -1;
+        pointer-events: none;
+        animation: float-blob 20s infinite alternate ease-in-out;
+    }
+
+    @keyframes float-blob {
+        from {
+            transform: translate(0, 0) rotate(0deg);
+        }
+
+        to {
+            transform: translate(-50px, 50px) rotate(10deg);
+        }
+    }
+
+    /* Premium Glass Header */
+    .hub-header {
+        background: #ffffff;
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        padding: 1.25rem 2.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .hub-header::before {
+        display: none;
+    }
+
+    .hub-avatar {
+        width: 72px;
+        height: 72px;
+        border-radius: 20px;
+        background: var(--team-gradient);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        color: white;
+        font-weight: 700;
+        box-shadow: 0 10px 20px
+            <?php echo $teamColorPrimary; ?>
+            20;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .hub-title h1 {
+        font-size: 2.25rem;
+        font-weight: 800;
+        color: #1e293b;
+        letter-spacing: -0.04em;
+        line-height: 1;
+        margin-bottom: 0.4rem;
+        text-transform: uppercase;
+    }
+
+    /* Assigned Tools Header */
+    .header-tools {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .tool-badge-mini {
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        background: white;
+        border: 1px solid var(--glass-border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.85rem;
+        color: #94a3b8;
+        transition: all 0.3s ease;
+    }
+
+    .tool-badge-mini.active {
+        color: var(--team-color);
+        background: var(--team-color-light);
+        border-color: var(--team-color-border);
+    }
+
+    /* Single Column Layout */
+    .bento-hub {
+        display: block;
+        /* Full container table */
+        width: 100%;
+    }
+
+    /* Glass Bento Card */
+    .bento-card {
+        background: #ffffff;
+        border-radius: 24px;
+        border: 1px solid var(--border);
+        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.02);
+        overflow: hidden;
+        transition: all 0.4s ease;
+        width: 100%;
+    }
+
+    .bento-card:hover {
+        /* Hover effect removed per user request */
+    }
+
+    .card-header-lux {
+        padding: 1.25rem 2.5rem;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #fafafa;
+    }
+
+    .card-header-lux h2 {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #334155;
+        margin: 0;
+        letter-spacing: -0.02em;
+        text-transform: uppercase;
+    }
+
+    /* Tactical Table */
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+        max-height: 480px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: var(--team-color-border) transparent;
+    }
+
+    .table-responsive::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .table-responsive::-webkit-scrollbar-thumb {
+        background: var(--team-color-border);
+        border-radius: 10px;
+    }
+
+    .tactical-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    .tactical-table th {
+        padding: 1rem 1.5rem;
+        background: #f8fafc;
+        text-align: left;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+        border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+    }
+
+    .tactical-table td {
+        padding: 0.5rem 1.25rem;
+        border-bottom: 1px solid var(--glass-border);
+        vertical-align: middle;
+        transition: all 0.3s ease;
+    }
+
+    .tactical-table tr:hover td {
+        /* Row hover background removed per user request */
+    }
+
+    .tactical-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    /* Operative Profile */
+    .op-profile {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+    }
+
+    .op-avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: #f8fafc;
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        color: var(--team-color);
+    }
+
+    .op-id {
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 600;
+        color: var(--text-muted);
+        background: #f1f5f9;
+        padding: 0.3rem 0.6rem;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        border: 1px solid var(--border);
+    }
+
+    /* Glass Modal */
+    .glass-modal {
+        background: rgba(15, 23, 42, 0.4);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+    }
+
+    .glass-modal.show {
+        display: flex;
+    }
+
+    .modal-box {
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(40px);
+        -webkit-backdrop-filter: blur(40px);
+        border-radius: 40px;
+        width: 100%;
+        max-width: 850px;
+        padding: 2.5rem 3.5rem;
+        box-shadow: 0 30px 100px -20px rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        animation: scaleIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        position: relative;
+    }
+
+    @keyframes scaleIn {
+        from {
+            transform: scale(0.9) translateY(20px);
+            opacity: 0;
+        }
+
+        to {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+        }
+    }
+
+    .input-premium {
+        width: 100%;
+        background: white;
+        border: 2px solid var(--glass-border);
+        border-radius: 20px;
+        padding: 1.1rem 1.4rem;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #1e293b;
+        transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        margin-bottom: 1.25rem;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.02) inset;
+    }
+
+    .input-premium:focus {
+        border-color: var(--team-color);
+        background: white;
+        box-shadow: 0 15px 30px var(--team-color-light);
+        outline: none;
+        transform: scale(1.02);
+    }
+
+    .label-lux {
+        display: block;
+        font-size: 0.65rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        color: #94a3b8;
+        letter-spacing: 0.12em;
+        margin-bottom: 0.75rem;
+        padding-left: 0.5rem;
+    }
+
+    .btn-tactical {
+        background: var(--team-gradient);
+        color: white;
+        border: none;
+        width: 100%;
+        padding: 1rem;
+        border-radius: 14px;
+        font-weight: 600;
+        font-size: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 12px
+            <?php echo $teamColorPrimary; ?>
+            20;
+    }
+
+    .btn-tactical:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 25px 50px
+            <?php echo $teamColorPrimary; ?>
+            60;
+        filter: brightness(1.1);
+    }
+
+    /* Add Member Button Premium */
+    .btn-add-op {
+        background: #ffffff;
+        color: var(--team-color);
+        border: 1px solid var(--border);
+        padding: 0.6rem 1.25rem;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-add-op:hover {
+        background: #f8fafc;
+        border-color: var(--team-color);
+        transform: translateY(-1px);
+    }
+
+    .status-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: #f0fdf4;
+        padding: 0.4rem 0.8rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.7rem;
+        color: #16a34a;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        border: 1px solid #dcfce7;
+    }
+
+    .pulse {
+        width: 10px;
+        height: 10px;
+        background: var(--team-color);
+        border-radius: 50%;
+        box-shadow: 0 0 0 rgba(var(--team-color), 0.4);
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0% {
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        }
+
+        70% {
+            box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+        }
+
+        100% {
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+        }
+    }
+
+    /* Action Icons */
+    .action-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        border: 1px solid var(--glass-border);
+        background: white;
+        color: #64748b;
+        font-size: 0.9rem;
+    }
+
+    .action-btn:hover {
+        transform: translateY(-3px) scale(1.1);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+    }
+
+    .action-btn.reset:hover {
+        color: #3b82f6;
+        border-color: #3b82f630;
+        background: #3b82f608;
+    }
+
+    .action-btn.toggle:hover {
+        color: #f59e0b;
+        border-color: #f59e0b30;
+        background: #f59e0b08;
+    }
+
+    .action-btn.delete:hover {
+        color: #ef4444;
+        border-color: #ef444430;
+        background: #ef444408;
+    }
+
+    /* Filter Search Box */
+    .filter-wrapper {
+        position: relative;
+        width: 350px;
+    }
+
+    .filter-input {
+        width: 100%;
+        background: white;
+        border: 1.5px solid var(--glass-border);
+        padding: 0.7rem 1rem 0.7rem 3rem;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #1e293b;
+        transition: all 0.3s ease;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.02);
+    }
+
+    .filter-input:focus {
+        border-color: var(--team-color);
+        box-shadow: 0 10px 25px var(--team-color-light);
+        outline: none;
+    }
+
+    .filter-icon {
+        position: absolute;
+        left: 1.25rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+        font-size: 1rem;
+        pointer-events: none;
+    }
+
+    .clear-search {
+        position: absolute;
+        right: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+        font-size: 1.1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 5px;
+    }
+
+    .clear-search:hover {
+        color: #ef4444;
+        transform: translateY(-50%) scale(1.1);
+    }
+
+    .toolbar-info {
+        font-size: 0.7rem;
+        font-weight: 900;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        background: white;
+        padding: 0.6rem 1.25rem;
+        border-radius: 14px;
+        border: 1px solid var(--glass-border);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.02);
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+    }
+
+    .clear-search {
+        position: absolute;
+        right: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 5px;
+    }
+
+    /* Pagination */
+    .hub-pagination {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: rgba(255, 255, 255, 0.6);
+        padding: 0.35rem;
+        border-radius: 14px;
+        border: 1px solid var(--glass-border);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+    }
+
+    .page-link {
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 0.75rem;
+        color: #64748b;
+        text-decoration: none;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .page-link:hover {
+        color: var(--team-color);
+        background: var(--team-color-light);
+    }
+
+    .page-link.active {
+        background: var(--team-color);
+        color: white;
+        border-color: var(--team-color);
+        box-shadow: 0 10px 20px var(--team-color-light);
+    }
+
+    .page-link.disabled {
+        opacity: 0.2;
+        pointer-events: none;
+        filter: grayscale(1);
+    }
+
+    /* Toast Notifications */
+    .toast-container {
+        position: fixed;
+        top: 2rem;
+        right: 2rem;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        pointer-events: none;
+    }
+
+    .toast {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-radius: 20px;
+        padding: 1.25rem 2rem;
+        min-width: 320px;
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--glass-border);
+        transform: translateX(120%);
+        transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        pointer-events: auto;
+    }
+
+    .toast.show {
+        transform: translateX(0);
+    }
+
+    .toast-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        flex-shrink: 0;
+    }
+
+    .toast-success .toast-icon {
+        background: #10b98115;
+        color: #10b981;
+    }
+
+    .toast-error .toast-icon {
+        background: #ef444415;
+        color: #ef4444;
+    }
+
+    .toast-content h4 {
+        margin: 0;
+        font-weight: 900;
+        color: #0f172a;
+        font-size: 0.95rem;
+    }
+
+    .toast-content p {
+        margin: 0.25rem 0 0;
+        color: #64748b;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+</style>
+
+<div class="tactical-bg-blob"></div>
+
+<div class="hub-header fade-in">
+    <div style="display: flex; align-items: center; gap: 2rem;">
+        <div class="hub-avatar">
+            <?php echo strtoupper(substr($team['name'], 0, 1)); ?>
+        </div>
+        <div class="hub-title">
+            <h1>
+                <?php echo htmlspecialchars($team['name']); ?>
+            </h1>
+            <p style="color: #64748b; font-size: 1.1rem; font-weight: 500; margin: 0;">
+                <?php echo htmlspecialchars($team['description'] ?: 'Commanding the strategic frontiers of user engagement.'); ?>
+            </p>
+            <div class="header-tools">
+                <?php
+                $toolsList = [
+                    'word' => 'fa-file-word',
+                    'spreadsheet' => 'fa-file-excel',
+                    'calendar' => 'fa-calendar-day',
+                    'chat' => 'fa-comments',
+                    'filemanager' => 'fa-folder-open',
+                    'tasksheet' => 'fa-list-check',
+                    'leadrequirement' => 'fa-id-card-clip'
+                ];
+                foreach ($toolsList as $toolKey => $icon):
+                    if ($team['tool_' . $toolKey] == 1):
+                        ?>
+                        <div class="tool-badge-mini active" title="<?php echo ucfirst($toolKey); ?>">
+                            <i class="fa-solid <?php echo $icon; ?>"></i>
+                        </div>
+                        <?php
+                    endif;
+                endforeach;
+                ?>
+            </div>
+        </div>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 1rem;">
+        <div class="status-badge">
+            <div class="pulse"></div> System Nominal
+        </div>
+        <div style="display: flex; gap: 1rem;">
+            <div style="text-align: right;">
+                <span
+                    style="display: block; font-size: 1.5rem; font-weight: 950; color: #0f172a; line-height: 1;"><?php echo $totalMembers; ?></span>
+                <span
+                    style="font-size: 0.65rem; font-weight: 900; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em;">Operatives</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<?php if ($message || $error): ?>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            <?php if ($message): ?>
+                showToast('Mission Successful', '<?php echo $message; ?>', 'success');
+            <?php endif; ?>
+            <?php if ($error): ?>
+                showToast('System Oversight', '<?php echo $error; ?>', 'error');
+            <?php endif; ?>
+        });
+    </script>
+<?php endif; ?>
+
+<div class="bento-hub">
+    <!-- Main Deployment Grid (Full Width) -->
+    <div class="bento-card fade-in">
+        <div class="card-header-lux">
+            <div style="display: flex; align-items: center; width: 100%;">
+                <!-- Left Sector: Search -->
+                <div style="flex: 1; display: flex; align-items: center;">
+                    <form method="GET" class="filter-wrapper" action="team_members.php" id="searchForm">
+                        <input type="hidden" name="id" value="<?php echo $teamId; ?>">
+                        <i class="fa-solid fa-magnifying-glass filter-icon"></i>
+                        <input type="text" name="q" class="filter-input" placeholder="Search operatives..."
+                            value="<?php echo htmlspecialchars($search); ?>" oninput="debounceSearch()">
+                        <?php if ($search): ?>
+                            <a href="?id=<?php echo $teamId; ?>" class="clear-search" title="Clear Search">
+                                <i class="fa-solid fa-circle-xmark"></i>
+                            </a>
+                        <?php endif; ?>
+                    </form>
+                </div>
+
+                <!-- Center Sector: Pagination -->
+                <div style="flex: 1; display: flex; justify-content: center; align-items: center;">
+                    <?php if ($totalPages > 1): ?>
+                        <div class="hub-pagination">
+                            <?php
+                            $paginationParams = "&id=" . $teamId . ($search ? "&q=" . urlencode($search) : "");
+                            ?>
+                            <a href="?p=<?php echo $page - 1; ?><?php echo $paginationParams; ?>"
+                                class="page-link <?php echo $page <= 1 ? 'disabled' : ''; ?>"><i
+                                    class="fa-solid fa-chevron-left"></i></a>
+                            <div style="padding: 0 0.75rem; display: flex; align-items: center; gap: 0.4rem;">
+                                <span
+                                    style="font-size: 0.75rem; font-weight: 950; color: var(--team-color);"><?php echo $page; ?></span>
+                                <span style="font-size: 0.7rem; font-weight: 800; color: #cbd5e1;">/</span>
+                                <span
+                                    style="font-size: 0.75rem; font-weight: 800; color: #94a3b8;"><?php echo $totalPages; ?></span>
+                            </div>
+                            <a href="?p=<?php echo $page + 1; ?><?php echo $paginationParams; ?>"
+                                class="page-link <?php echo $page >= $totalPages ? 'disabled' : ''; ?>"><i
+                                    class="fa-solid fa-chevron-right"></i></a>
+                        </div>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Right Sector: Deployment -->
+                <div style="flex: 1; display: flex; justify-content: flex-end; align-items: center;">
+                    <button class="btn-add-op" onclick="toggleModal('recruitmentModal', true)">
+                        <i class="fa-solid fa-user-plus"></i>
+                        DEPLOY NEW OPERATIVE
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="tactical-table">
+                <thead>
+                    <tr>
+                        <th>Operative Identity</th>
+                        <th>Tactical Handle</th>
+                        <th>Relay Channel</th>
+                        <th>Tactical ID</th>
+                        <th style="text-align: center;">Deployment Status</th>
+                        <th style="text-align: right;">Authorization</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($members)): ?>
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 4rem 2rem;">
+                                <div style="opacity: 0.1; font-size: 4rem; margin-bottom: 1rem;"><i
+                                        class="fa-solid fa-radar"></i></div>
+                                <h3 style="font-size: 1.5rem; font-weight: 900; color: #94a3b8; margin: 0;">Scanning... No
+                                    Operatives Found</h3>
+                                <p style="color: #cbd5e1; font-weight: 600; margin-top: 0.5rem;">Deploy your first unit to
+                                    begin
+                                    operations.</p>
+                            </td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($members as $m): ?>
+                            <tr>
+                                <td>
+                                    <div class="op-profile">
+                                        <div class="op-avatar"
+                                            style="background: <?php echo $m['is_active'] ? 'white' : '#f1f5f9'; ?>; opacity: <?php echo $m['is_active'] ? '1' : '0.5'; ?>;">
+                                            <?php echo strtoupper(substr($m['full_name'], 0, 1)); ?>
+                                        </div>
+                                        <div style="opacity: <?php echo $m['is_active'] ? '1' : '0.6'; ?>;">
+                                            <div style="font-weight: 900; color: #1e293b; font-size: 1.1rem;">
+                                                <?php echo htmlspecialchars($m['full_name']); ?>
+                                            </div>
+                                            <div
+                                                style="font-size: 0.75rem; color: #94a3b8; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">
+                                                <?php echo htmlspecialchars($m['role']); ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><span
+                                        style="font-weight: 800; color: #475569;">@<?php echo htmlspecialchars($m['username']); ?></span>
+                                </td>
+                                <td><span
+                                        style="font-weight: 700; color: #64748b; font-size: 0.9rem;"><?php echo htmlspecialchars($m['email']); ?></span>
+                                </td>
+                                <td><span class="op-id"><?php echo htmlspecialchars($m['unique_id']); ?></span></td>
+                                <td style="text-align: center;">
+                                    <div
+                                        style="display: inline-flex; align-items: center; gap: 0.5rem; background: <?php echo $m['is_active'] ? 'rgba(16, 185, 129, 0.08)' : 'rgba(244, 63, 94, 0.08)'; ?>; padding: 0.4rem 0.8rem; border-radius: 12px; border: 1.5px solid <?php echo $m['is_active'] ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.15)'; ?>;">
+                                        <div
+                                            style="width: 7px; height: 7px; border-radius: 50%; background: <?php echo $m['is_active'] ? '#10b981' : '#f43f5e'; ?>; box-shadow: 0 0 10px <?php echo $m['is_active'] ? 'rgba(16, 185, 129, 0.4)' : 'rgba(244, 63, 94, 0.4)'; ?>;">
+                                        </div>
+                                        <span
+                                            style="font-size: 0.7rem; font-weight: 900; color: <?php echo $m['is_active'] ? '#059669' : '#e11d48'; ?>; text-transform: uppercase; letter-spacing: 0.05em;"><?php echo $m['is_active'] ? 'Active' : 'Offline'; ?></span>
+                                    </div>
+                                </td>
+                                <td style="text-align: right;">
+                                    <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                                        <button type="button" class="action-btn reset" title="Reset Encryption Key"
+                                            onclick="openResetModal('<?php echo $m['id']; ?>', '<?php echo htmlspecialchars($m['full_name']); ?>')">
+                                            <i class="fa-solid fa-key"></i>
+                                        </button>
+                                        <form method="POST" style="display: inline;">
+                                            <input type="hidden" name="action" value="toggle_status">
+                                            <input type="hidden" name="user_id" value="<?php echo $m['id']; ?>">
+                                            <input type="hidden" name="current_status" value="<?php echo $m['is_active']; ?>">
+                                            <button type="submit" class="action-btn toggle"
+                                                title="<?php echo $m['is_active'] ? 'Deactivate' : 'Activate'; ?>"><i
+                                                    class="fa-solid <?php echo $m['is_active'] ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i></button>
+                                        </form>
+                                        <form method="POST" style="display: inline;"
+                                            onsubmit="return confirm('Purge this operative from the tactical system?')">
+                                            <input type="hidden" name="action" value="delete_member">
+                                            <input type="hidden" name="user_id" value="<?php echo $m['id']; ?>">
+                                            <button type="submit" class="action-btn delete" title="Purge Operative"><i
+                                                    class="fa-solid fa-trash-can"></i></button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+</div>
+
+<!-- Modal Recruitment Station -->
+<div class="glass-modal" id="recruitmentModal">
+    <div class="modal-box">
+        <button onclick="toggleModal('recruitmentModal', false)"
+            style="position: absolute; top: 1.5rem; right: 1.5rem; background: none; border: none; color: #94a3b8; font-size: 1.25rem; cursor: pointer; transition: all 0.2s;"
+            onmouseover="this.style.color='#0f172a'" onmouseout="this.style.color='#94a3b8'">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+
+        <div style="margin-bottom: 2.5rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <h2 style="font-size: 2.25rem; font-weight: 950; color: #0f172a; margin: 0; letter-spacing: -0.04em;">
+                    Recruitment</h2>
+            </div>
+        </div>
+
+        <form method="POST">
+            <input type="hidden" name="action" value="add_member">
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem 2.5rem;">
+                <div>
+                    <label class="label-lux">Identity Information</label>
+                    <input type="text" name="full_name" class="input-premium" placeholder="Full Legal Name" required>
+                </div>
+                <div>
+                    <label class="label-lux">Tactical Handle</label>
+                    <input type="text" name="username" class="input-premium" placeholder="Username" required>
+                </div>
+                <div>
+                    <label class="label-lux">Relay Channel</label>
+                    <input type="email" name="email" class="input-premium" placeholder="Email Address" required>
+                </div>
+                <div>
+                    <label class="label-lux">Encryption Key</label>
+                    <input type="password" name="password" class="input-premium" placeholder="••••••••••••" required>
+                </div>
+            </div>
+
+            <div
+                style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 2.5rem; align-items: center; margin-top: 0.5rem;">
+                <div
+                    style="background: white; border: 2px dashed var(--glass-border); padding: 1rem 1.5rem; border-radius: 20px; display: flex; align-items: center; gap: 1rem;">
+                    <div
+                        style="width: 40px; height: 40px; border-radius: 12px; background: var(--team-color-light); color: var(--team-color); display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0;">
+                        <i class="fa-solid fa-circle-info"></i>
+                    </div>
+                    <p style="font-size: 0.75rem; color: #64748b; font-weight: 600; margin: 0; line-height: 1.4;">
+                        New operative credentials and system access will be initialized upon deployment.</p>
+                </div>
+
+                <button type="submit" class="btn-tactical" style="padding: 1rem;">
+                    <i class="fa-solid fa-shuttle-space"></i>
+                    DEPLOY OPERATIVE
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Reset Password Modal -->
+<div id="resetModal" class="glass-modal">
+    <div class="modal-box" style="max-width: 500px;">
+        <div class="card-header-lux" style="padding: 0 0 1.5rem 0; margin-bottom: 2rem;">
+            <div>
+                <h2 style="font-size: 1.5rem;">Update Encryption Key</h2>
+                <p style="color: #94a3b8; font-size: 0.8rem; font-weight: 600; margin-top: 0.25rem;">Re-initializing
+                    access for <span id="resetOpName" style="color: var(--team-color);"></span></p>
+            </div>
+            <button onclick="toggleModal('resetModal', false)"
+                style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 1.25rem;">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <form method="POST">
+            <input type="hidden" name="action" value="reset_password">
+            <input type="hidden" name="user_id" id="resetUserId">
+
+            <div style="margin-bottom: 2rem;">
+                <label class="label-lux">New Master Key</label>
+                <input type="password" name="new_password" class="input-premium" placeholder="••••••••••••" required>
+            </div>
+
+            <button type="submit" class="btn-tactical">
+                <i class="fa-solid fa-shield-halved"></i>
+                ENGAGE NEW PROTOCOL
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    function toggleModal(id, show) {
+        const modal = document.getElementById(id);
+        if (show) {
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        } else {
+            modal.classList.remove('show');
+            document.body.style.overflow = '';
+        }
+    }
+
+    // Close modal on outside click
+    window.onclick = function (event) {
+        if (event.target.classList.contains('glass-modal')) {
+            event.target.classList.remove('show');
+            document.body.style.overflow = '';
+        }
+    }
+
+    function openResetModal(userId, fullName) {
+        document.getElementById('resetUserId').value = userId;
+        document.getElementById('resetOpName').textContent = fullName;
+        toggleModal('resetModal', true);
+    }
+
+    function showToast(title, message, type = 'success') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+
+        const icon = type === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation';
+
+        toast.innerHTML = `
+            <div class="toast-icon">
+                <i class="fa-solid ${icon}"></i>
+            </div>
+            <div class="toast-content">
+                <h4>${title}</h4>
+                <p>${message}</p>
+            </div>
+        `;
+
+        container.appendChild(toast);
+
+        // Trigger animation
+        setTimeout(() => toast.classList.add('show'), 100);
+
+        // Auto-remove
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 600);
+        }, 5000);
+    }
+
+    let searchTimer;
+    function debounceSearch() {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+            document.getElementById('searchForm').submit();
+        }, 500);
+    }
+</script>
+
+<?php endLayout(); ?>

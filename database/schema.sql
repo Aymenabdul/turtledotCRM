@@ -7,37 +7,22 @@ CREATE TABLE IF NOT EXISTS users (
     full_name VARCHAR(255),
     role VARCHAR(50) DEFAULT 'user', -- admin, user
     is_active BOOLEAN DEFAULT TRUE,
+    two_fa_secret VARCHAR(32) NULL,
+    two_fa_enabled BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_login TIMESTAMP NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Leads Table
-CREATE TABLE IF NOT EXISTS leads (
+CREATE TABLE IF NOT EXISTS teams (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL, -- Associate who created this lead
     name VARCHAR(255) NOT NULL,
-    phone VARCHAR(50) NOT NULL,
-    email VARCHAR(255),
-    platform VARCHAR(100),
-    status VARCHAR(50) DEFAULT 'New', -- New, Contacted, Interested, Not Interested
-    service VARCHAR(100), -- Web Development, App Development, Testing Service, Digital Marketing
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    description TEXT,
+    tool_word BOOLEAN DEFAULT FALSE,
+    tool_spreadsheet BOOLEAN DEFAULT FALSE,
+    tool_calendar BOOLEAN DEFAULT FALSE,
+    tool_chat BOOLEAN DEFAULT FALSE,
+    tool_filemanager BOOLEAN DEFAULT FALSE,
+    tool_tasksheet BOOLEAN DEFAULT FALSE,
+    tool_leadrequirement BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Converted Leads Table
-CREATE TABLE IF NOT EXISTS converted_leads (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    original_lead_id INT,
-    user_id INT NOT NULL, -- Associate who converted this lead
-    name VARCHAR(255) NOT NULL,
-    phone VARCHAR(50) NOT NULL,
-    email VARCHAR(255),
-    platform VARCHAR(100),
-    service VARCHAR(100),
-    payment_status VARCHAR(50) DEFAULT 'Pending', -- Pending, Paid, Refunded
-    converted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(original_lead_id) REFERENCES leads(id) ON DELETE SET NULL,
-    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
