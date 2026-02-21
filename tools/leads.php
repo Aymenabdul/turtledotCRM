@@ -44,12 +44,13 @@ startLayout("Lead Tracker - " . $team['name'], $user);
     <div class="word-hero mb-4">
         <div class="flex-between align-end">
             <div>
-                <a href="/team-dashboard.php?id=<?php echo $teamId; ?>" class="crumb-link mb-2">
+                <a href="javascript:history.back()" class="crumb-link mb-2">
                     <i class="fa-solid fa-arrow-left"></i> Back to Dashboard
                 </a>
                 <h1 class="page-title">Lead Tracker</h1>
                 <p class="page-subtitle">Manage and track customer leads for
-                    <?php echo htmlspecialchars($team['name']); ?></p>
+                    <?php echo htmlspecialchars($team['name']); ?>
+                </p>
             </div>
             <div>
                 <button class="btn btn-primary btn-lg shine-effect" onclick="openAddLeadModal()">

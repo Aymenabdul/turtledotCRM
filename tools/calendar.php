@@ -1227,7 +1227,7 @@ startLayout("Calendar - " . $team['name'], $user);
     <!-- Hero -->
     <div class="cal-hero">
         <div class="cal-hero-left">
-            <a href="/team-dashboard.php?id=<?php echo $teamId; ?>" class="cal-breadcrumb">
+            <a href="javascript:history.back()" class="cal-breadcrumb">
                 <i class="fa-solid fa-arrow-left"></i> Back to Dashboard
             </a>
             <h1><i class="fa-solid fa-calendar-days" style="color:var(--primary);"></i> Team Calendar</h1>
@@ -1833,7 +1833,7 @@ startLayout("Calendar - " . $team['name'], $user);
     function checkEventNotifications() {
         const now = new Date();
         const nowUtc = now.getTime();
-        
+
         // Update Status UI
         const statusEl = document.getElementById('notifStatus');
         if (statusEl) {
@@ -1850,18 +1850,18 @@ startLayout("Calendar - " . $team['name'], $user);
                 // Replacing - with / and T with space is safest for cross-browser local parsing
                 const cleanDate = event.start_time.replace(/-/g, '/').replace('T', ' ');
                 eventTime = new Date(cleanDate).getTime();
-            } catch(e) { 
+            } catch (e) {
                 console.error("[Notif] Parse error:", event.start_time);
-                return; 
+                return;
             }
 
             if (isNaN(eventTime)) return;
-            
+
             const diff = eventTime - nowUtc;
-            
+
             // Check window: Trigger if starts within next 1M or started in last 10M
             if (diff <= 60000 && diff >= -600000) {
-                console.warn(`[Notif] TRIGGER for: ${event.title} (ID: ${event.id}) | Diff: ${Math.round(diff/1000)}s`);
+                console.warn(`[Notif] TRIGGER for: ${event.title} (ID: ${event.id}) | Diff: ${Math.round(diff / 1000)}s`);
                 showEventAlert(event);
                 notifiedEvents.add(idStr);
                 sessionStorage.setItem('notified_events', JSON.stringify([...notifiedEvents]));
@@ -1871,7 +1871,7 @@ startLayout("Calendar - " . $team['name'], $user);
 
     function showEventAlert(event) {
         const time = formatTime(event.start_time);
-        
+
         // Play Sound
         NOTIFY_SOUND.play().catch(e => console.log('Audio playback blocked until user interacts with page.'));
 

@@ -26,7 +26,7 @@ try {
         SELECT 
             COUNT(*) as total,
             SUM(CASE WHEN created_by = ? THEN 1 ELSE 0 END) as mine
-        FROM spreadsheets 
+        FROM word_documents 
         WHERE team_id = ?
     ");
     $statsStmt->execute([$user['user_id'], $teamId]);
@@ -37,47 +37,43 @@ try {
     die("Error: " . $e->getMessage());
 }
 
-startLayout("Spreadsheets - " . $team['name'], $user);
+startLayout("Documents - " . $team['name'], $user);
 ?>
 
-<!-- Premium Spreadsheet Dashboard -->
-<div class="sheet-dashboard fade-in">
+<!-- Premium Word Dashboard -->
+<div class="word-dashboard fade-in">
 
     <!-- Hero Section -->
-    <div class="sheet-hero mb-4">
+    <div class="word-hero mb-4">
         <div class="flex-between align-end">
             <div>
-                <a href="/team-dashboard.php?id=<?php echo $teamId; ?>" class="crumb-link mb-2">
+                <a href="javascript:history.back()" class="crumb-link mb-2">
                     <i class="fa-solid fa-arrow-left"></i> Back to Dashboard
                 </a>
-                <h1 class="page-title">Spreadsheets</h1>
-                <p class="page-subtitle">Manage and collaborate on your team's spreadsheets.</p>
+                <h1 class="page-title">Documents</h1>
+                <p class="page-subtitle">Manage and collaborate on your team's documents.</p>
             </div>
             <div>
-                <!-- Create via API and redirect, or link to editor with new flag -->
-                <!-- For simplicity and consistency with existing tool buffer, we link to the editor 
-                      which has a 'New Sheet' button, or we can implement a direct create action here later.
-                      However, to match Word Dashboard, let's make it create a new sheet immediately. -->
-                <button onclick="createNewSheet()" class="btn btn-primary btn-lg shine-effect">
+                <button onclick="createNewDoc()" class="btn btn-primary btn-lg shine-effect">
                     <i class="fa-solid fa-plus"></i>
-                    <span>New Spreadsheet</span>
+                    <span>New Document</span>
                 </button>
             </div>
         </div>
     </div>
 
     <!-- Main Content Area -->
-    <div class="sheet-content-area">
+    <div class="word-content-area">
 
         <!-- Stats Grid -->
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-icon bg-green-100 text-green-600">
-                    <i class="fa-solid fa-file-excel"></i>
+                <div class="stat-icon bg-blue-100 text-blue-600">
+                    <i class="fa-solid fa-file-word"></i>
                 </div>
                 <div>
                     <div class="stat-value"><?php echo (int) ($stats['total'] ?? 0); ?></div>
-                    <div class="stat-label">Total Sheets</div>
+                    <div class="stat-label">Total Docs</div>
                 </div>
             </div>
             <div class="stat-card">
@@ -86,7 +82,7 @@ startLayout("Spreadsheets - " . $team['name'], $user);
                 </div>
                 <div>
                     <div class="stat-value"><?php echo (int) ($stats['mine'] ?? 0); ?></div>
-                    <div class="stat-label">My Sheets</div>
+                    <div class="stat-label">My Docs</div>
                 </div>
             </div>
             <div class="stat-card">
@@ -104,7 +100,7 @@ startLayout("Spreadsheets - " . $team['name'], $user);
         <div class="controls-bar card mb-4">
             <div class="search-wrapper">
                 <i class="fa-solid fa-magnifying-glass"></i>
-                <input type="text" id="docSearch" placeholder="Search spreadsheets..." oninput="handleSearch()">
+                <input type="text" id="docSearch" placeholder="Search documents..." oninput="handleSearch()">
             </div>
             <div class="flex-gap">
                 <button class="btn btn-secondary icon-only" onclick="loadDocuments(1)" title="Refresh">
@@ -118,7 +114,7 @@ startLayout("Spreadsheets - " . $team['name'], $user);
             <table class="modern-table">
                 <thead>
                     <tr>
-                        <th width="15%">Sheet Name</th>
+                        <th width="15%">Document Name</th>
                         <th width="15%">Author</th>
                         <th width="15%">Updated By</th>
                         <th width="15%">Assigned By</th>
@@ -134,11 +130,11 @@ startLayout("Spreadsheets - " . $team['name'], $user);
             <!-- Empty State -->
             <div id="emptyState" class="empty-state" style="display: none;">
                 <div class="empty-illustration">
-                    <i class="fa-regular fa-file-excel"></i>
+                    <i class="fa-regular fa-file-word"></i>
                 </div>
-                <h3>No spreadsheets yet</h3>
-                <p>Create your first spreadsheet to get started.</p>
-                <button class="btn btn-primary" onclick="createNewSheet()">Create Spreadsheet</button>
+                <h3>No documents yet</h3>
+                <p>Create your first document to get started.</p>
+                <button class="btn btn-primary" onclick="createNewDoc()">Create Document</button>
             </div>
 
             <!-- Loading State -->
@@ -159,7 +155,7 @@ startLayout("Spreadsheets - " . $team['name'], $user);
 <div id="shareModal" class="share-modal-overlay">
     <div class="share-modal">
         <div class="share-header">
-            <h3>Share Spreadsheet</h3>
+            <h3>Share Document</h3>
             <button class="close-btn" onclick="closeShareModal()"><i class="fa-solid fa-xmark"></i></button>
         </div>
 
@@ -208,14 +204,14 @@ startLayout("Spreadsheets - " . $team['name'], $user);
 </div>
 
 <style>
-    /* Scoped Styles for Sheet Dashboard */
-    .sheet-dashboard {
+    /* Scoped Styles for Word Dashboard */
+    .word-dashboard {
         font-family: 'Inter', sans-serif;
         padding-bottom: 4rem;
     }
 
     /* Hero */
-    .sheet-hero {
+    .word-hero {
         margin-bottom: 2.5rem;
     }
 
@@ -321,12 +317,12 @@ startLayout("Spreadsheets - " . $team['name'], $user);
     }
 
     /* Utility Helpers */
-    .bg-green-100 {
-        background: #dcfce7;
+    .bg-blue-100 {
+        background: #dbeafe;
     }
 
-    .text-green-600 {
-        color: #166534;
+    .text-blue-600 {
+        color: #2563eb;
     }
 
     .bg-emerald-100 {
@@ -813,7 +809,6 @@ startLayout("Spreadsheets - " . $team['name'], $user);
     }
 
     /* List Layout */
-    /* List Layout */
     .assignee-list {
         display: grid;
         /* Changed to grid */
@@ -1006,7 +1001,6 @@ startLayout("Spreadsheets - " . $team['name'], $user);
         transform: scale(0.98);
     }
 
-    /* View Assignments Styles */
     /* View Assignments Styles - Clean List */
     .view-user-list {
         display: flex;
@@ -1072,7 +1066,7 @@ startLayout("Spreadsheets - " . $team['name'], $user);
         document.getElementById('emptyState').style.display = 'none';
 
         try {
-            const response = await fetch(`/api/spreadsheet.php?team_id=${teamId}&page=${page}&limit=10&search=${encodeURIComponent(searchQuery)}`);
+            const response = await fetch(`/api/word.php?team_id=${teamId}&page=${page}&limit=10&search=${encodeURIComponent(searchQuery)}`);
             const result = await response.json();
 
             showLoading(false);
@@ -1084,7 +1078,7 @@ startLayout("Spreadsheets - " . $team['name'], $user);
         } catch (err) {
             console.error(err);
             showLoading(false);
-            if (window.Toast) Toast.error("Error", "Failed to load spreadsheets.");
+            if (window.Toast) Toast.error("Error", "Failed to load documents.");
         }
     }
 
@@ -1099,15 +1093,15 @@ startLayout("Spreadsheets - " . $team['name'], $user);
         }
 
         tbody.innerHTML = docs.map((doc, index) => `
-            <tr onclick="window.location.href='/tools/spreadsheet_editor.php?team_id=${teamId}&id=${doc.id}'" style="cursor: pointer;">
+            <tr onclick="window.location.href='/tools/word_editor.php?team_id=${teamId}&id=${doc.id}'" style="cursor: pointer;">
                 <td>
                     <div class="doc-info">
                         <div class="doc-icon">
-                            <i class="fa-solid fa-file-excel"></i>
+                            <i class="fa-solid fa-file-word"></i>
                         </div>
                         <div class="doc-meta">
                             <h4>${doc.title}</h4>
-                            <span>Spreadsheet</span>
+                            <span>DOCX</span>
                         </div>
                     </div>
                 </td>
@@ -1139,7 +1133,7 @@ startLayout("Spreadsheets - " . $team['name'], $user);
                         <button class="btn-action" onclick="triggerShare(event, ${index})" title="Assign / Share">
                             <i class="fa-solid fa-user-plus"></i>
                         </button>
-                        <button class="btn-action" onclick="window.location.href='/tools/spreadsheet_editor.php?team_id=${teamId}&id=${doc.id}'" title="Edit">
+                        <button class="btn-action" onclick="window.location.href='/tools/word_editor.php?team_id=${teamId}&id=${doc.id}'" title="Edit">
                             <i class="fa-solid fa-pen-to-square"></i>
                         </button>
                         <button class="btn-action delete" onclick="confirmDelete(event, ${doc.id})" title="Delete">
@@ -1150,8 +1144,6 @@ startLayout("Spreadsheets - " . $team['name'], $user);
             </tr>
         `).join('');
     }
-    // ...
-
 
     function renderPagination(pg) {
         const container = document.getElementById('docPagination');
@@ -1173,23 +1165,23 @@ startLayout("Spreadsheets - " . $team['name'], $user);
         searchTimer = setTimeout(() => loadDocuments(1), 300);
     }
 
-    async function createNewSheet() {
+    async function createNewDoc() {
         try {
-            const response = await fetch('/api/spreadsheet.php', {
+            const response = await fetch('/api/word.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     team_id: teamId,
-                    title: 'New Spreadsheet',
-                    content: JSON.stringify(Array(10).fill(Array(10).fill('')))
+                    title: 'New Document',
+                    content: '' // Start empty
                 })
             });
             const result = await response.json();
             if (result.success) {
                 // Redirect to editor
-                window.location.href = `/tools/spreadsheet_editor.php?team_id=${teamId}&id=${result.id}`;
+                window.location.href = `/tools/word_editor.php?team_id=${teamId}&id=${result.id}`;
             } else {
-                if (window.Toast) Toast.error("Error", "Failed to create spreadsheet.");
+                if (window.Toast) Toast.error("Error", "Failed to create document.");
             }
         } catch (e) {
             console.error(e);
@@ -1211,13 +1203,13 @@ startLayout("Spreadsheets - " . $team['name'], $user);
         e.stopPropagation();
 
         Confirm.show({
-            title: 'Delete Spreadsheet',
-            message: 'Are you sure you want to delete this spreadsheet? This action cannot be undone.',
+            title: 'Delete Document',
+            message: 'Are you sure you want to delete this document? This action cannot be undone.',
             confirmText: 'Delete Forever',
             type: 'danger',
             onConfirm: async () => {
                 try {
-                    const response = await fetch('/api/spreadsheet.php', {
+                    const response = await fetch('/api/word.php', {
                         method: 'DELETE',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ id: id, team_id: teamId })
@@ -1225,7 +1217,7 @@ startLayout("Spreadsheets - " . $team['name'], $user);
                     const res = await response.json();
 
                     if (res.success) {
-                        Toast.success('Deleted', 'Spreadsheet deleted successfully');
+                        Toast.success('Deleted', 'Document deleted successfully');
                         loadDocuments(currentPage);
                     } else {
                         Toast.error('Error', res.message);
@@ -1241,17 +1233,17 @@ startLayout("Spreadsheets - " . $team['name'], $user);
     document.addEventListener('DOMContentLoaded', () => {
         loadDocuments();
     });
+
     // Share / Assignment Logic
     let teamsData = [];
     let usersData = [];
     let currentAssignedTo = []; // List of User IDs
     let activeTeamTab = null;
-    let currentSheetId = null;
+    let currentSheetId = null; // actually docId
 
     async function openShareModal(id, assignedToRaw) {
         currentSheetId = id;
 
-        // Parse assigned_to
         // Parse assigned_to
         currentAssignedTo = [];
         if (assignedToRaw) {
@@ -1344,8 +1336,6 @@ startLayout("Spreadsheets - " . $team['name'], $user);
                 </div>
             `).join('');
         }
-
-
 
         removeInactiveAssignments(); // Remove inactive users from selection
 
@@ -1466,7 +1456,7 @@ startLayout("Spreadsheets - " . $team['name'], $user);
             btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Saving...';
             btn.disabled = true;
 
-            const response = await fetch('/api/spreadsheet.php', {
+            const response = await fetch('/api/word.php', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

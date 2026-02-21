@@ -24,5 +24,41 @@ CREATE TABLE IF NOT EXISTS teams (
     tool_filemanager BOOLEAN DEFAULT FALSE,
     tool_tasksheet BOOLEAN DEFAULT FALSE,
     tool_leadrequirement BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    tools TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) DEFAULT 'active'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS word_documents (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    team_id INT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    content LONGTEXT,
+    created_by INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    updated_by INT,
+    assigned_to LONGTEXT,
+    assigned_by INT,
+    INDEX (team_id),
+    INDEX (created_by),
+    INDEX (updated_by),
+    INDEX (assigned_by)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS spreadsheets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    team_id INT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    content LONGTEXT,
+    created_by INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    updated_by INT,
+    assigned_to LONGTEXT,
+    assigned_by INT,
+    INDEX (team_id),
+    INDEX (created_by),
+    INDEX (updated_by),
+    INDEX (assigned_by)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

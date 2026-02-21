@@ -271,28 +271,84 @@ startLayout($team['name'] . ' Hub', $user);
     /* Assigned Tools Header */
     .header-tools {
         display: flex;
-        gap: 0.5rem;
-        margin-top: 1rem;
+        gap: 0.75rem;
+        margin-top: 1.25rem;
     }
 
     .tool-badge-mini {
-        width: 32px;
-        height: 32px;
-        border-radius: 10px;
-        background: white;
-        border: 1px solid var(--glass-border);
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        background: #f1f5f9;
+        border: 1.5px solid #e1e7ef;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 0.85rem;
-        color: #94a3b8;
-        transition: all 0.3s ease;
+        font-size: 1.1rem;
+        color: #475569;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        text-decoration: none;
+        cursor: pointer;
+        position: relative;
+    }
+
+    .tool-badge-mini:hover {
+        transform: translateY(-4px) scale(1.1);
+        z-index: 10;
+        box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.2);
     }
 
     .tool-badge-mini.active {
-        color: var(--team-color);
-        background: var(--team-color-light);
-        border-color: var(--team-color-border);
+        color: #3b82f6;
+        background: #eff6ff;
+        border-color: #dbeafe;
+    }
+
+    .tool-badge-mini.active:hover {
+        border-color: #3b82f630;
+        background: #3b82f608;
+    }
+
+    .tool-badge-mini.word.active {
+        color: #2b579a;
+        background: #eff6ff;
+        border-color: #dbeafe;
+    }
+
+    .tool-badge-mini.spreadsheet.active {
+        color: #217346;
+        background: #f0fdf4;
+        border-color: #dcfce7;
+    }
+
+    .tool-badge-mini.calendar.active {
+        color: #d93025;
+        background: #fef2f2;
+        border-color: #fee2e2;
+    }
+
+    .tool-badge-mini.chat.active {
+        color: #1a73e8;
+        background: #e8f0fe;
+        border-color: #d2e3fc;
+    }
+
+    .tool-badge-mini.filemanager.active {
+        color: #f9ab00;
+        background: #fffcf0;
+        border-color: #feefc3;
+    }
+
+    .tool-badge-mini.tasksheet.active {
+        color: #188038;
+        background: #e6f4ea;
+        border-color: #ceead6;
+    }
+
+    .tool-badge-mini.leadrequirement.active {
+        color: #a142f4;
+        background: #f3e8fd;
+        border-color: #e9d2fd;
     }
 
     /* Single Column Layout */
@@ -839,20 +895,23 @@ startLayout($team['name'] . ' Hub', $user);
             <div class="header-tools">
                 <?php
                 $toolsList = [
-                    'word' => 'fa-file-word',
-                    'spreadsheet' => 'fa-file-excel',
-                    'calendar' => 'fa-calendar-day',
-                    'chat' => 'fa-comments',
-                    'filemanager' => 'fa-folder-open',
-                    'tasksheet' => 'fa-list-check',
-                    'leadrequirement' => 'fa-id-card-clip'
+                    'word' => ['icon' => 'fa-file-word', 'path' => '/tools/word.php'],
+                    'spreadsheet' => ['icon' => 'fa-file-excel', 'path' => '/tools/timesheet.php'],
+                    'calendar' => ['icon' => 'fa-calendar-day', 'path' => '/tools/calendar.php'],
+                    'chat' => ['icon' => 'fa-comments', 'path' => '/tools/chat.php'],
+                    'filemanager' => ['icon' => 'fa-folder-open', 'path' => '/tools/files.php'],
+                    'tasksheet' => ['icon' => 'fa-list-check', 'path' => '/tools/tasks.php'],
+                    'leadrequirement' => ['icon' => 'fa-id-card-clip', 'path' => '/tools/leads.php']
                 ];
-                foreach ($toolsList as $toolKey => $icon):
-                    if ($team['tool_' . $toolKey] == 1):
+                foreach ($toolsList as $toolKey => $data):
+                    if ($team['tool_' . $toolKey] == 1 || $user['role'] === 'admin'):
+                        $isActive = $team['tool_' . $toolKey] == 1;
                         ?>
-                        <div class="tool-badge-mini active" title="<?php echo ucfirst($toolKey); ?>">
-                            <i class="fa-solid <?php echo $icon; ?>"></i>
-                        </div>
+                        <a href="<?php echo $data['path']; ?>?team_id=<?php echo $teamId; ?>"
+                            class="tool-badge-mini <?php echo $toolKey; ?> <?php echo $isActive ? 'active' : ''; ?>" title="<?php echo ucfirst($toolKey);
+                                       echo !$isActive ? ' (Not Enabled for Team)' : ''; ?>">
+                            <i class="fa-solid <?php echo $data['icon']; ?>"></i>
+                        </a>
                         <?php
                     endif;
                 endforeach;

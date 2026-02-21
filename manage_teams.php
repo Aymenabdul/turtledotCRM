@@ -32,7 +32,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $tool_tasksheet = isset($_POST['tool_tasksheet']) ? 1 : 0;
                 $tool_leadrequirement = isset($_POST['tool_leadrequirement']) ? 1 : 0;
 
-                $stmt = $pdo->prepare("INSERT INTO teams (name, description, status, tool_word, tool_spreadsheet, tool_calendar, tool_chat, tool_filemanager, tool_tasksheet, tool_leadrequirement) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $tools = [];
+                if ($tool_word)
+                    $tools[] = 'word';
+                if ($tool_spreadsheet)
+                    $tools[] = 'spreadsheet';
+                if ($tool_calendar)
+                    $tools[] = 'calendar';
+                if ($tool_chat)
+                    $tools[] = 'chat';
+                if ($tool_filemanager)
+                    $tools[] = 'files';
+                if ($tool_tasksheet)
+                    $tools[] = 'tasks';
+                if ($tool_leadrequirement)
+                    $tools[] = 'leads';
+                $tools_json = json_encode($tools);
+
+                $stmt = $pdo->prepare("INSERT INTO teams (name, description, status, tool_word, tool_spreadsheet, tool_calendar, tool_chat, tool_filemanager, tool_tasksheet, tool_leadrequirement, tools) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([
                     $name,
                     $description,
@@ -43,7 +60,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $tool_chat,
                     $tool_filemanager,
                     $tool_tasksheet,
-                    $tool_leadrequirement
+                    $tool_leadrequirement,
+                    $tools_json
                 ]);
                 $_SESSION['flash_msg'] = "New squadron established successfully!";
             } elseif ($_POST['action'] === 'update') {
@@ -60,7 +78,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $tool_tasksheet = isset($_POST['tool_tasksheet']) ? 1 : 0;
                 $tool_leadrequirement = isset($_POST['tool_leadrequirement']) ? 1 : 0;
 
-                $stmt = $pdo->prepare("UPDATE teams SET name = ?, description = ?, status = ?, tool_word = ?, tool_spreadsheet = ?, tool_calendar = ?, tool_chat = ?, tool_filemanager = ?, tool_tasksheet = ?, tool_leadrequirement = ? WHERE id = ?");
+                $tools = [];
+                if ($tool_word)
+                    $tools[] = 'word';
+                if ($tool_spreadsheet)
+                    $tools[] = 'spreadsheet';
+                if ($tool_calendar)
+                    $tools[] = 'calendar';
+                if ($tool_chat)
+                    $tools[] = 'chat';
+                if ($tool_filemanager)
+                    $tools[] = 'files';
+                if ($tool_tasksheet)
+                    $tools[] = 'tasks';
+                if ($tool_leadrequirement)
+                    $tools[] = 'leads';
+                $tools_json = json_encode($tools);
+
+                $stmt = $pdo->prepare("UPDATE teams SET name = ?, description = ?, status = ?, tool_word = ?, tool_spreadsheet = ?, tool_calendar = ?, tool_chat = ?, tool_filemanager = ?, tool_tasksheet = ?, tool_leadrequirement = ?, tools = ? WHERE id = ?");
                 $stmt->execute([
                     $name,
                     $description,
@@ -72,6 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $tool_filemanager,
                     $tool_tasksheet,
                     $tool_leadrequirement,
+                    $tools_json,
                     $id
                 ]);
                 $_SESSION['flash_msg'] = "Configuration synced for the team!";
@@ -820,21 +856,22 @@ startLayout('Team Command Center', $user);
                 <div class="tool-swatch-container">
                     <?php
                     $tools = [
-                        'word' => ['i' => 'fa-file-word', 't' => 'Document Engine'],
-                        'spreadsheet' => ['i' => 'fa-file-excel', 't' => 'Grid Processor'],
-                        'calendar' => ['i' => 'fa-calendar-day', 't' => 'Timeline Scheduler'],
-                        'chat' => ['i' => 'fa-comments', 't' => 'Pulse Chat'],
-                        'filemanager' => ['i' => 'fa-folder-open', 't' => 'Archive Vault'],
-                        'tasksheet' => ['i' => 'fa-list-check', 't' => 'Task Logic'],
-                        'leadrequirement' => ['i' => 'fa-id-card-clip', 't' => 'Lead Intake']
+                        'word' => ['i' => 'fa-file-word', 't' => 'Document Engine', 'p' => '/tools/word.php'],
+                        'spreadsheet' => ['i' => 'fa-file-excel', 't' => 'Grid Processor', 'p' => '/tools/timesheet.php'],
+                        'calendar' => ['i' => 'fa-calendar-day', 't' => 'Timeline Scheduler', 'p' => '/tools/calendar.php'],
+                        'chat' => ['i' => 'fa-comments', 't' => 'Pulse Chat', 'p' => '/tools/chat.php'],
+                        'filemanager' => ['i' => 'fa-folder-open', 't' => 'Archive Vault', 'p' => '/tools/files.php'],
+                        'tasksheet' => ['i' => 'fa-list-check', 't' => 'Task Logic', 'p' => '/tools/tasks.php'],
+                        'leadrequirement' => ['i' => 'fa-id-card-clip', 't' => 'Lead Intake', 'p' => '/tools/leads.php']
                     ];
                     foreach ($tools as $key => $meta):
                         $isActive = (isset($team['tool_' . $key]) && $team['tool_' . $key] == 1);
                         ?>
-                        <div class="tool-swatch <?php echo $isActive ? 'active' : ''; ?>"
-                            data-title="<?php echo $meta['t']; ?>">
+                        <a href="<?php echo $meta['p']; ?>?team_id=<?php echo $team['id']; ?>"
+                            class="tool-swatch <?php echo $isActive ? 'active' : ''; ?>" data-title="<?php echo $meta['t']; ?>"
+                            style="text-decoration: none;">
                             <i class="fa-solid <?php echo $meta['i']; ?>"></i>
-                        </div>
+                        </a>
                     <?php endforeach; ?>
                 </div>
             </div>

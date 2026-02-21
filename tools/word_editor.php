@@ -25,14 +25,25 @@ try {
     die("Error: " . $e->getMessage());
 }
 
-startLayout($docId ? "Edit Document" : "New Document", $user);
+startLayout($docId ? "Edit Document" : "New Document", $user, false);
 ?>
+
+<style>
+    .main-wrapper {
+        margin-left: 0 !important;
+    }
+
+    .main-content {
+        padding: 0 !important;
+        max-width: 100% !important;
+    }
+</style>
 
 <div class="workspace-wrapper fade-in">
     <!-- Workspace Nav -->
     <div class="workspace-nav" style="position: relative;">
         <div class="nav-left">
-            <a href="/tools/word.php?team_id=<?php echo $teamId; ?>" class="btn-back" title="Back to Dashboard">
+            <a href="javascript:history.back()" class="btn-back" title="Back to Dashboard">
                 <i class="fa-solid fa-arrow-left"></i>
             </a>
             <div class="doc-icon-header">
@@ -52,7 +63,8 @@ startLayout($docId ? "Edit Document" : "New Document", $user);
         <!-- Centered Date Meta -->
         <div class="date-meta"
             style="display:none; position: absolute; left: 50%; transform: translateX(-50%); text-align: center; font-size: 0.7rem; color: var(--text-muted); white-space: nowrap;">
-            <span id="createdAtMeta">Created: -</span> <span style="margin: 0 4px;">•</span> <span id="updatedAtMeta">Updated: -</span>
+            <span id="createdAtMeta">Created: -</span> <span style="margin: 0 4px;">•</span> <span
+                id="updatedAtMeta">Updated: -</span>
         </div>
 
         <div class="nav-actions">

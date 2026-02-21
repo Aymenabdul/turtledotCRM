@@ -32,7 +32,7 @@ $password = $input['password'];
 try {
     // Find user by username or email (remove is_active filter to check separately)
     $stmt = $pdo->prepare("
-        SELECT id, username, email, password, full_name, role, is_active, two_fa_secret, two_fa_enabled 
+        SELECT id, username, email, password, full_name, role, is_active, two_fa_secret, two_fa_enabled, team_id 
         FROM users 
         WHERE (username = :username OR email = :username)
     ");
@@ -95,7 +95,8 @@ try {
         'username' => $user['username'],
         'email' => $user['email'],
         'role' => $user['role'],
-        'full_name' => $user['full_name']
+        'full_name' => $user['full_name'],
+        'team_id' => $user['team_id']
     ];
 
     $token = JWT::encode($payload, 24); // 24 hours expiry

@@ -134,11 +134,11 @@ startLayout('Admin Dashboard', $user);
             <p class="card-subtitle">Manage users and system resources.</p>
         </div>
         <div class="grid grid-2" style="gap: var(--spacing-md)">
-            <a href="/manage_associates.php" class="btn btn-primary" style="justify-content: center;">
-                <i class="fa-solid fa-user-plus"></i> Add User
+            <a href="/manage_teams.php" class="btn btn-primary" style="justify-content: center;">
+                <i class="fa-solid fa-users-gear"></i> Manage Teams
             </a>
-            <a href="/technical_associates.php" class="btn btn-secondary" style="justify-content: center;">
-                <i class="fa-solid fa-laptop-code"></i> Developer Team
+            <a href="/manage_teams.php" class="btn btn-secondary" style="justify-content: center;">
+                <i class="fa-solid fa-user-plus"></i> Team Hub
             </a>
             <a href="#" class="btn btn-secondary" style="justify-content: center;"
                 onclick="showToast('Feature coming soon', 'info')">

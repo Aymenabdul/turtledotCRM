@@ -1756,7 +1756,7 @@ startLayout("Chat — " . htmlspecialchars($team['name']), $user, false);
                 <div class="ws-name"><?php echo htmlspecialchars($team['name']); ?></div>
                 <div class="ws-sub">Team Workspace</div>
             </div>
-            <a href="/team-dashboard.php?id=<?php echo $teamId; ?>" class="ws-back" title="Back to Dashboard">
+            <a href="javascript:history.back()" class="ws-back" title="Back to Dashboard">
                 <i class="fa-solid fa-arrow-left"></i>
             </a>
         </div>
