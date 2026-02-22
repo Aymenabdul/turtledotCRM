@@ -8,11 +8,50 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 try {
     if ($method === 'GET') {
+        $id = $_GET['id'] ?? null;
         $teamId = $_GET['team_id'] ?? null;
         $page = isset($_GET['page']) ? intval($_GET['page']) : 1;
-        $limit = 10;
+        $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 10;
         $offset = ($page - 1) * $limit;
-        $search = $_GET['q'] ?? '';
+        $search = $_GET['search'] ?? $_GET['q'] ?? '';
+
+        // Individual document fetch
+        if ($id) {
+            $stmt = $pdo->prepare("
+                SELECT d.*, 
+                       u.full_name as author_name,
+                       u2.full_name as updated_by_name,
+                       u3.full_name as assigned_by_name
+                FROM word_documents d
+                LEFT JOIN users u ON d.created_by = u.id
+                LEFT JOIN users u2 ON d.updated_by = u2.id
+                LEFT JOIN users u3 ON d.assigned_by = u3.id
+                WHERE d.id = ?
+            ");
+            $stmt->execute([$id]);
+            $doc = $stmt->fetch();
+
+            if (!$doc) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'Document not found']);
+                exit;
+            }
+
+            $rawIds = json_decode($doc['assigned_to'] ?? '[]', true);
+            if (!is_array($rawIds)) {
+                $rawIds = (!empty($rawIds) && (is_numeric($rawIds) || is_string($rawIds))) ? [$rawIds] : [];
+            }
+            $activeUserIds = [];
+            if (!empty($rawIds)) {
+                $placeholders = implode(',', array_fill(0, count($rawIds), '?'));
+                $activeStmt = $pdo->prepare("SELECT id FROM users WHERE id IN ($placeholders) AND is_active = 1");
+                $activeStmt->execute($rawIds);
+                $activeUserIds = $activeStmt->fetchAll(PDO::FETCH_COLUMN);
+            }
+            $doc['assigned_users'] = array_values(array_intersect($rawIds, $activeUserIds));
+            echo json_encode(['success' => true, 'data' => $doc]);
+            exit;
+        }
 
         if (!$teamId) {
             http_response_code(400);
@@ -21,15 +60,15 @@ try {
         }
 
         // Search condition
-        $where = "WHERE team_id = :team_id";
+        $where = "WHERE d.team_id = :team_id";
         $params = [':team_id' => $teamId];
         if ($search) {
-            $where .= " AND title LIKE :search";
+            $where .= " AND d.title LIKE :search";
             $params[':search'] = "%$search%";
         }
 
         // Count total
-        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM word_documents $where");
+        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM word_documents d $where");
         $countStmt->execute($params);
         $total = $countStmt->fetchColumn();
 
@@ -57,8 +96,38 @@ try {
         $docs = $stmt->fetchAll();
 
         // Format docs (handle assigned_to JSON)
+        // Correcting: Resolve active users to ensure counts are accurate
+        $allAssignedIds = [];
+        foreach ($docs as $doc) {
+            $data = $doc['assigned_to'] ?? '[]';
+            $ids = json_decode($data, true);
+            if (is_array($ids)) {
+                $allAssignedIds = array_merge($allAssignedIds, $ids);
+            } elseif (!empty($ids) && (is_numeric($ids) || is_string($ids))) {
+                $allAssignedIds[] = $ids;
+            }
+        }
+        $allAssignedIds = array_unique(array_filter($allAssignedIds));
+        $activeUserIds = [];
+        if (!empty($allAssignedIds)) {
+            $placeholders = implode(',', array_fill(0, count($allAssignedIds), '?'));
+            $activeStmt = $pdo->prepare("SELECT id FROM users WHERE id IN ($placeholders) AND is_active = 1");
+            $activeStmt->execute($allAssignedIds);
+            $activeUserIds = $activeStmt->fetchAll(PDO::FETCH_COLUMN);
+        }
+
         foreach ($docs as &$doc) {
-            $doc['assigned_users'] = json_decode($doc['assigned_to'] ?? '[]', true);
+            $data = $doc['assigned_to'] ?? '[]';
+            $decoded = json_decode($data, true);
+            $rawIds = [];
+            if (is_array($decoded)) {
+                $rawIds = $decoded;
+            } elseif (!empty($decoded) && (is_numeric($decoded) || is_string($decoded))) {
+                $rawIds = [$decoded];
+            }
+
+            // Only keep IDs that are in the active user list
+            $doc['assigned_users'] = array_values(array_intersect($rawIds, $activeUserIds));
         }
 
         echo json_encode([
@@ -70,7 +139,7 @@ try {
                 'total' => $total
             ]
         ]);
-
+        exit;
     } elseif ($method === 'POST') {
         $data = json_decode(file_get_contents('php://input'), true);
         if (!isset($data['team_id']) || !isset($data['title'])) {

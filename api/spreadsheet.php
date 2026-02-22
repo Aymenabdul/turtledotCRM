@@ -12,7 +12,7 @@ try {
         $page = isset($_GET['page']) ? intval($_GET['page']) : 1;
         $limit = 10;
         $offset = ($page - 1) * $limit;
-        $search = $_GET['q'] ?? '';
+        $search = $_GET['search'] ?? $_GET['q'] ?? '';
 
         if (!$teamId) {
             http_response_code(400);
@@ -21,15 +21,15 @@ try {
         }
 
         // Search condition
-        $where = "WHERE team_id = :team_id";
+        $where = "WHERE s.team_id = :team_id";
         $params = [':team_id' => $teamId];
         if ($search) {
-            $where .= " AND title LIKE :search";
+            $where .= " AND s.title LIKE :search";
             $params[':search'] = "%$search%";
         }
 
         // Count total
-        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM spreadsheets $where");
+        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM spreadsheets s $where");
         $countStmt->execute($params);
         $total = $countStmt->fetchColumn();
 
@@ -57,8 +57,35 @@ try {
         $sheets = $stmt->fetchAll();
 
         // Format sheets (handle assigned_to JSON)
+        $allAssignedIds = [];
+        foreach ($sheets as $sheet) {
+            $data = $sheet['assigned_to'] ?? '[]';
+            $ids = json_decode($data, true);
+            if (is_array($ids)) {
+                $allAssignedIds = array_merge($allAssignedIds, $ids);
+            } elseif (!empty($ids) && (is_numeric($ids) || is_string($ids))) {
+                $allAssignedIds[] = $ids;
+            }
+        }
+        $allAssignedIds = array_unique(array_filter($allAssignedIds));
+        $activeUserIds = [];
+        if (!empty($allAssignedIds)) {
+            $placeholders = implode(',', array_fill(0, count($allAssignedIds), '?'));
+            $activeStmt = $pdo->prepare("SELECT id FROM users WHERE id IN ($placeholders) AND is_active = 1");
+            $activeStmt->execute($allAssignedIds);
+            $activeUserIds = $activeStmt->fetchAll(PDO::FETCH_COLUMN);
+        }
+
         foreach ($sheets as &$sheet) {
-            $sheet['assigned_users'] = json_decode($sheet['assigned_to'] ?? '[]', true);
+            $data = $sheet['assigned_to'] ?? '[]';
+            $decoded = json_decode($data, true);
+            $rawIds = [];
+            if (is_array($decoded)) {
+                $rawIds = $decoded;
+            } elseif (!empty($decoded) && (is_numeric($decoded) || is_string($decoded))) {
+                $rawIds = [$decoded];
+            }
+            $sheet['assigned_users'] = array_values(array_intersect($rawIds, $activeUserIds));
         }
 
         echo json_encode([

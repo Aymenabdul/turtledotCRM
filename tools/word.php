@@ -1074,11 +1074,13 @@ startLayout("Documents - " . $team['name'], $user);
             if (result.success) {
                 renderTable(result.data);
                 renderPagination(result.pagination);
+            } else {
+                if (window.Toast) Toast.error("Error", result.message || "Failed to load documents.");
             }
         } catch (err) {
             console.error(err);
             showLoading(false);
-            if (window.Toast) Toast.error("Error", "Failed to load documents.");
+            if (window.Toast) Toast.error("Error", "Network error occurred.");
         }
     }
 
@@ -1124,7 +1126,9 @@ startLayout("Documents - " . $team['name'], $user);
                     <div class="user-chip" onclick="viewAssignments(event, ${index})">
                         <i class="fa-solid fa-users" style="margin-right:6px; font-size:0.75rem;"></i>
                         <span class="user-text" style="color:inherit;">
-                            ${(doc.assigned_users && doc.assigned_users.length > 0) ? doc.assigned_users.length + ' Members' : 'Unassigned'}
+                            ${(doc.assigned_users && doc.assigned_users.length > 0)
+                ? doc.assigned_users.length + (doc.assigned_users.length === 1 ? ' Member' : ' Members')
+                : 'Unassigned'}
                         </span>
                     </div>
                 </td>
@@ -1429,11 +1433,12 @@ startLayout("Documents - " . $team['name'], $user);
             return;
         }
 
-        const index = currentAssignedTo.indexOf(uid);
+        const id = Number(uid);
+        const index = currentAssignedTo.indexOf(id);
         if (index > -1) {
             currentAssignedTo.splice(index, 1);
         } else {
-            currentAssignedTo.push(uid);
+            currentAssignedTo.push(id);
         }
         renderAssigneeList(); // Re-render to update checkboxes
         updateSelectionCount();
@@ -1443,7 +1448,7 @@ startLayout("Documents - " . $team['name'], $user);
         const count = currentAssignedTo.length;
         const countEl = document.getElementById('selectionCount');
         if (countEl) {
-            countEl.textContent = `${count} member${count !== 1 ? 's' : ''} added`;
+            countEl.textContent = `${count} member${count !== 1 ? 's' : ''} selected`;
         }
     }
 
@@ -1461,7 +1466,8 @@ startLayout("Documents - " . $team['name'], $user);
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     id: currentSheetId,
-                    assigned_to: currentAssignedTo
+                    assigned_to: currentAssignedTo,
+                    assigned_by: userId
                 })
             });
 
