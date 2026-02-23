@@ -21,7 +21,7 @@ function startLayout($pageTitle = 'Turtle Dot', $user = null, $includeNavbar = t
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title><?php echo htmlspecialchars($pageTitle); ?> | Turtle Dot</title>
+        <title><?php echo htmlspecialchars($pageTitle); ?> | Turtledot CRM</title>
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -30,8 +30,24 @@ function startLayout($pageTitle = 'Turtle Dot', $user = null, $includeNavbar = t
             href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto+Serif:opsz,wght@8..144,300;400;500;600;700&display=swap"
             rel="stylesheet">
 
+        <!-- PWA Manifest -->
+        <link rel="manifest" href="/manifest.json">
+        <meta name="theme-color" content="#10b981">
+        <link rel="apple-touch-icon" href="/assets/images/turtle_logo_192.png">
+
         <!-- Font Awesome -->
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+        <script>
+            // Register Service Worker for PWA
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('/sw.js')
+                        .then(reg => console.log('Service Worker registered'))
+                        .catch(err => console.log('Service Worker registration failed', err));
+                });
+            }
+        </script>
 
         <style>
             /* ===== CSS Variables (Theme) ===== */

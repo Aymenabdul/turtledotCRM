@@ -150,15 +150,32 @@ try {
             $sheet['assigned_users'] = array_values(array_intersect($rawIds, $activeUserIds));
         }
 
+        // Stats for current user and team
+        $statsStmt = $pdo->prepare("
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN created_by = ? THEN 1 ELSE 0 END) as mine
+            FROM spreadsheets 
+            WHERE team_id = ?
+        ");
+        $statsStmt->execute([$user['user_id'], $teamId]);
+        $stats = $statsStmt->fetch();
+
         echo json_encode([
             'success' => true,
             'data' => $sheets,
+            'stats' => [
+                'total' => (int) ($stats['total'] ?? 0),
+                'mine' => (int) ($stats['mine'] ?? 0),
+                'status' => 'Active'
+            ],
             'pagination' => [
                 'current' => $page,
                 'pages' => ceil($total / $limit),
                 'total' => $total
             ]
         ]);
+        exit;
 
     } elseif ($method === 'POST') {
         $data = json_decode(file_get_contents('php://input'), true);

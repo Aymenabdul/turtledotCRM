@@ -22,7 +22,20 @@ try {
         if ($action === 'channels') {
             $stmt = $pdo->prepare("SELECT * FROM channels WHERE team_id = ? ORDER BY name ASC");
             $stmt->execute([$teamId]);
-            echo json_encode(['success' => true, 'data' => $stmt->fetchAll()]);
+            $channels = $stmt->fetchAll();
+
+            // For each channel, get unread count
+            foreach ($channels as &$ch) {
+                $lrStmt = $pdo->prepare("SELECT last_read_message_id FROM channel_members_last_read WHERE user_id = ? AND channel_id = ?");
+                $lrStmt->execute([$userId, $ch['id']]);
+                $lastReadId = $lrStmt->fetchColumn() ?: 0;
+
+                $cStmt = $pdo->prepare("SELECT COUNT(*) FROM chat_messages WHERE channel = ? AND id > ? AND user_id != ?");
+                $cStmt->execute([$ch['name'], $lastReadId, $userId]);
+                $ch['unread_count'] = (int) $cStmt->fetchColumn();
+            }
+
+            echo json_encode(['success' => true, 'data' => $channels]);
             exit;
         }
 
@@ -48,14 +61,21 @@ try {
 
                 if ($otherUser) {
                     // Get last message for preview
-                    $lStmt = $pdo->prepare("SELECT message, user_id FROM chat_messages WHERE channel = ? ORDER BY id DESC LIMIT 1");
+                    $lStmt = $pdo->prepare("SELECT message, user_id, is_read FROM chat_messages WHERE channel = ? ORDER BY id DESC LIMIT 1");
                     $lStmt->execute([$chan]);
                     $lastMsg = $lStmt->fetch();
+
+                    // Get unread count for the current user (messages sent by the other user that I haven't read)
+                    $cStmt = $pdo->prepare("SELECT COUNT(*) FROM chat_messages WHERE channel = ? AND user_id = ? AND is_read = 0");
+                    $cStmt->execute([$chan, $otherId]);
+                    $unreadCount = $cStmt->fetchColumn();
 
                     $dms[] = [
                         'partner' => $otherUser,
                         'last_message' => $lastMsg['message'] ?? '',
-                        'last_message_mine' => ($lastMsg['user_id'] ?? 0) == $userId
+                        'last_message_mine' => ($lastMsg['user_id'] ?? 0) == $userId,
+                        'last_message_read' => ($lastMsg['is_read'] ?? 0) == 1,
+                        'unread_count' => (int) $unreadCount
                     ];
                 }
             }
@@ -166,6 +186,29 @@ try {
                 exit;
             }
 
+            if ($action === 'mark_as_read') {
+                $channel = $data['channel'] ?? '';
+                if (strpos($channel, 'dm-') === 0) {
+                    $stmt = $pdo->prepare("UPDATE chat_messages SET is_read = 1, read_at = NOW() WHERE channel = ? AND user_id != ? AND is_read = 0");
+                    $stmt->execute([$channel, $userId]);
+                } else {
+                    $channelId = $data['channel_id'] ?? 0;
+                    if ($channelId) {
+                        // Get max message id
+                        $mStmt = $pdo->prepare("SELECT MAX(id) FROM chat_messages WHERE channel = ?");
+                        $mStmt->execute([$channel]);
+                        $maxId = $mStmt->fetchColumn() ?: 0;
+
+                        if ($maxId) {
+                            $stmt = $pdo->prepare("INSERT INTO channel_members_last_read (user_id, channel_id, last_read_message_id) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE last_read_message_id = ?");
+                            $stmt->execute([$userId, $channelId, $maxId, $maxId]);
+                        }
+                    }
+                }
+                echo json_encode(['success' => true]);
+                exit;
+            }
+
             if ($action === 'edit_message') {
                 $stmt = $pdo->prepare("UPDATE chat_messages SET message = ? WHERE id = ? AND user_id = ?");
                 $stmt->execute([$data['message'], $data['message_id'], $userId]);
@@ -262,6 +305,29 @@ try {
 
         $stmt = $pdo->prepare("INSERT INTO chat_messages (team_id, channel, user_id, message) VALUES (?, ?, ?, ?)");
         $stmt->execute([$teamId, $channel, $userId, $message]);
+        $newMsgId = $pdo->lastInsertId();
+
+        // 🔔 Background Notification Trigger
+        require_once __DIR__ . '/../lib/NotificationService.php';
+        $senderName = $user['full_name'] ?: ($user['username'] ?: 'Someone');
+
+        if (strpos($channel, 'dm-') === 0) {
+            // Direct Message push
+            $parts = explode('-', $channel);
+            $targetUserId = ($parts[1] == $userId) ? $parts[2] : $parts[1];
+            NotificationService::sendPushToUser($targetUserId, "New Message from $senderName", $message);
+        } else {
+            // Channel push (to all channel members except sender)
+            $stmtM = $pdo->prepare("
+                SELECT user_id FROM channel_members cm 
+                JOIN channels c ON cm.channel_id = c.id 
+                WHERE c.name = ? AND cm.user_id != ?
+            ");
+            $stmtM->execute([$channel, $userId]);
+            while ($row = $stmtM->fetch()) {
+                NotificationService::sendPushToUser($row['user_id'], "#$channel: $senderName", $message);
+            }
+        }
 
         // If DM, ensure thread is tracked and not marked as deleted
         if (strpos($channel, 'dm-') === 0) {

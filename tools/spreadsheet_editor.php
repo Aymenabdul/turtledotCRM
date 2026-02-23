@@ -914,7 +914,7 @@ try {
     <!-- Top Bar -->
     <div class="excel-title-bar">
         <div class="title-left">
-            <a href="javascript:history.back()" class="back-btn" title="Back to Dashboard">
+            <a href="/tools/timesheet.php?team_id=<?php echo $teamId; ?>" class="back-btn" title="Back to Dashboard">
                 <i class="fa-solid fa-arrow-left"></i>
             </a>
             <div class="app-icon"><i class="fa-solid fa-table"></i></div>

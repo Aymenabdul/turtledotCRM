@@ -72,7 +72,7 @@ startLayout("Documents - " . $team['name'], $user);
                     <i class="fa-solid fa-file-word"></i>
                 </div>
                 <div>
-                    <div class="stat-value"><?php echo (int) ($stats['total'] ?? 0); ?></div>
+                    <div class="stat-value" id="statTotalDocs"><?php echo (int) ($stats['total'] ?? 0); ?></div>
                     <div class="stat-label">Total Docs</div>
                 </div>
             </div>
@@ -81,7 +81,7 @@ startLayout("Documents - " . $team['name'], $user);
                     <i class="fa-solid fa-user-check"></i>
                 </div>
                 <div>
-                    <div class="stat-value"><?php echo (int) ($stats['mine'] ?? 0); ?></div>
+                    <div class="stat-value" id="statMyDocs"><?php echo (int) ($stats['mine'] ?? 0); ?></div>
                     <div class="stat-label">My Docs</div>
                 </div>
             </div>
@@ -1074,6 +1074,7 @@ startLayout("Documents - " . $team['name'], $user);
             if (result.success) {
                 renderTable(result.data);
                 renderPagination(result.pagination);
+                updateStats(result.stats);
             } else {
                 if (window.Toast) Toast.error("Error", result.message || "Failed to load documents.");
             }
@@ -1082,6 +1083,14 @@ startLayout("Documents - " . $team['name'], $user);
             showLoading(false);
             if (window.Toast) Toast.error("Error", "Network error occurred.");
         }
+    }
+
+    function updateStats(stats) {
+        if (!stats) return;
+        const totalEl = document.getElementById('statTotalDocs');
+        const mineEl = document.getElementById('statMyDocs');
+        if (totalEl) totalEl.textContent = stats.total;
+        if (mineEl) mineEl.textContent = stats.mine;
     }
 
     function renderTable(docs) {
@@ -1236,6 +1245,13 @@ startLayout("Documents - " . $team['name'], $user);
     // Initial Load
     document.addEventListener('DOMContentLoaded', () => {
         loadDocuments();
+    });
+
+    // Detect when user returns via Back button and force refresh
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted) {
+            loadDocuments(currentPage);
+        }
     });
 
     // Share / Assignment Logic

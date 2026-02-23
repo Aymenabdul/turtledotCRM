@@ -43,7 +43,7 @@ startLayout($docId ? "Edit Document" : "New Document", $user, false);
     <!-- Workspace Nav -->
     <div class="workspace-nav" style="position: relative;">
         <div class="nav-left">
-            <a href="javascript:history.back()" class="btn-back" title="Back to Dashboard">
+            <a href="/tools/word.php?team_id=<?php echo $teamId; ?>" class="btn-back" title="Back to Dashboard">
                 <i class="fa-solid fa-arrow-left"></i>
             </a>
             <div class="doc-icon-header">

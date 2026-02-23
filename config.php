@@ -37,4 +37,8 @@ try {
         die("Connection failed: " . $e->getMessage());
     }
 }
-?>
+
+// VAPID Keys for Push Notifications
+define('VAPID_PUBLIC_KEY', 'BOT34D3Wld3Hw7tnAThhk6XfrY3t-PZ1hMMr6BJJNC6oA0Yx9s6bw4NGF1J9AOvohWXt5y-BSOWXtK9LUftWj7E');
+define('VAPID_PRIVATE_KEY', 'S7smjXkDZo0mrVmWKbPPmDg13Pze520lvW6gvhc5wJA');
+define('VAPID_SUBJECT', 'mailto:admin@turtledot.com');

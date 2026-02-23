@@ -76,7 +76,7 @@ startLayout("Spreadsheets - " . $team['name'], $user);
                     <i class="fa-solid fa-file-excel"></i>
                 </div>
                 <div>
-                    <div class="stat-value"><?php echo (int) ($stats['total'] ?? 0); ?></div>
+                    <div class="stat-value" id="statTotalSheets"><?php echo (int) ($stats['total'] ?? 0); ?></div>
                     <div class="stat-label">Total Sheets</div>
                 </div>
             </div>
@@ -85,7 +85,7 @@ startLayout("Spreadsheets - " . $team['name'], $user);
                     <i class="fa-solid fa-user-check"></i>
                 </div>
                 <div>
-                    <div class="stat-value"><?php echo (int) ($stats['mine'] ?? 0); ?></div>
+                    <div class="stat-value" id="statMySheets"><?php echo (int) ($stats['mine'] ?? 0); ?></div>
                     <div class="stat-label">My Sheets</div>
                 </div>
             </div>
@@ -1080,12 +1080,21 @@ startLayout("Spreadsheets - " . $team['name'], $user);
             if (result.success) {
                 renderTable(result.data);
                 renderPagination(result.pagination);
+                updateStats(result.stats);
             }
         } catch (err) {
             console.error(err);
             showLoading(false);
             if (window.Toast) Toast.error("Error", "Failed to load spreadsheets.");
         }
+    }
+
+    function updateStats(stats) {
+        if (!stats) return;
+        const totalEl = document.getElementById('statTotalSheets');
+        const mineEl = document.getElementById('statMySheets');
+        if (totalEl) totalEl.textContent = stats.total;
+        if (mineEl) mineEl.textContent = stats.mine;
     }
 
     function renderTable(docs) {
@@ -1242,6 +1251,13 @@ startLayout("Spreadsheets - " . $team['name'], $user);
     // Initial Load
     document.addEventListener('DOMContentLoaded', () => {
         loadDocuments();
+    });
+
+    // Detect when user returns via Back button and force refresh
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted) {
+            loadDocuments(currentPage);
+        }
     });
     // Share / Assignment Logic
     let teamsData = [];

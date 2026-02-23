@@ -244,6 +244,35 @@ startLayout("Chat — " . htmlspecialchars($team['name']), $user, false);
         text-overflow: ellipsis;
     }
 
+    /* Unread badge */
+    .unread-badge {
+        background: #ef4444;
+        color: white;
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 10px;
+        min-width: 18px;
+        text-align: center;
+        line-height: 1;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .sidebar-item .unread-badge {
+        margin-left: 4px;
+    }
+
+    /* Message status */
+    .msg-status {
+        font-size: 0.7rem;
+        margin-left: 4px;
+        color: #94a3b8;
+    }
+
+    .msg-status.read {
+        color: #38bdf8;
+    }
+
     /* Members list section */
     .members-section {
         flex: 1;
@@ -2147,9 +2176,11 @@ startLayout("Chat — " . htmlspecialchars($team['name']), $user, false);
         if (!el) return;
         el.innerHTML = channels.map(c => {
             const active = (!isDmView && c.name === currentChannel) ? 'active' : '';
+            const unread = (c.unread_count > 0) ? `<span class="unread-badge">${c.unread_count}</span>` : '';
             return `<div class="sidebar-item ${active}" onclick="switchChannel('${escAttr(c.name)}', ${c.id || 'null'})">
                         <span class="item-icon"><i class="fa-solid fa-hashtag"></i></span>
                         <span class="item-label">${escHtml(c.name)}</span>
+                        ${unread}
                     </div>`;
         }).join('');
     }
@@ -2196,6 +2227,14 @@ startLayout("Chat — " . htmlspecialchars($team['name']), $user, false);
 
         loadMessages();
         startPolling();
+        markAsRead();
+
+        // Save state
+        localStorage.setItem('chat_active_view', JSON.stringify({
+            type: 'channel',
+            name: name,
+            id: channelId
+        }));
     }
 
     function switchToDM(userId, name) {
@@ -2234,6 +2273,14 @@ startLayout("Chat — " . htmlspecialchars($team['name']), $user, false);
 
         loadMessages();
         startPolling();
+        markAsRead();
+
+        // Save state
+        localStorage.setItem('chat_active_view', JSON.stringify({
+            type: 'dm',
+            userId: userId,
+            name: name
+        }));
     }
 
     /* ══════════════ MEMBERS & DMs ══════════════ */
@@ -2302,16 +2349,27 @@ startLayout("Chat — " . htmlspecialchars($team['name']), $user, false);
                 }
             }
             if (preview.length > 30) preview = preview.substring(0, 30) + '…';
-            if (dm.last_message_mine) preview = 'You: ' + preview;
+
+            let statusIcon = '';
+            if (dm.last_message_mine) {
+                const read = dm.last_message_read ? ' read' : '';
+                statusIcon = `<span class="msg-status${read}"><i class="fa-solid fa-check-double"></i></span>`;
+                preview = 'You: ' + preview;
+            }
+
+            const unread = (dm.unread_count > 0) ? `<span class="unread-badge" style="margin-left:auto;">${dm.unread_count}</span>` : '';
 
             return `<div class="member-item${isActive ? ' active' : ''}" onclick="switchToDM(${p.id}, '${escAttr(name)}')" style="cursor:pointer;${isActive ? 'background:rgba(16,185,129,0.15);color:#34d399;' : ''}">
                 <div class="member-avatar" style="background:${color}">
                     ${ini}
                     <div class="member-avatar-dot ${online ? 'online' : ''}"></div>
                 </div>
-                <div class="member-info">
-                    <div class="member-name-text">${escHtml(name)}</div>
-                    <div class="member-last-msg">${escHtml(preview)}</div>
+                <div class="member-info" style="flex:1; min-width:0;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div class="member-name-text">${escHtml(name)}</div>
+                        ${unread}
+                    </div>
+                    <div class="member-last-msg">${escHtml(preview)} ${statusIcon}</div>
                 </div>
                 <button class="member-delete-btn" onclick="event.stopPropagation(); deleteRecentChat(${p.id}, '${escAttr(name)}')" title="Delete Chat">
                     <i class="fa-solid fa-trash-can"></i>
@@ -2446,6 +2504,12 @@ startLayout("Chat — " . htmlspecialchars($team['name']), $user, false);
                     const color = avatarColor(name);
                     const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+                    let statusHtml = '';
+                    if (mine) {
+                        const read = msg.is_read == 1 ? ' read' : '';
+                        statusHtml = `<span class="msg-status${read}"><i class="fa-solid fa-check-double"></i></span>`;
+                    }
+
                     // Parse attachments
                     let bodyHtml = escHtml(msg.message);
                     bodyHtml = bodyHtml.replace(/\[attachment:(.*?)\]/g, (match, url) => {
@@ -2486,10 +2550,20 @@ startLayout("Chat — " . htmlspecialchars($team['name']), $user, false);
                         <div class="msg-body">
                             ${!mine ? `<div class="msg-sender">${escHtml(name)}</div>` : ''}
                             <div class="msg-bubble" id="msg-bubble-${msg.id}">${bodyHtml}</div>
-                            <div class="msg-time">${time}</div>
+                            <div class="msg-time">${time} ${statusHtml}</div>
                         </div>`;
                     box.appendChild(g);
                     lastMessageId = Math.max(lastMessageId, parseInt(msg.id));
+
+                    // Notification & Read status logic
+                    if (!mine && lastMessageId === msg.id) {
+                        if (document.visibilityState !== 'visible') {
+                            showPushNotification(name, msg.message);
+                        } else {
+                            // If tab is visible and we just got a new message on this channel
+                            markAsRead();
+                        }
+                    }
                 });
 
                 if (atBottom || lastMessageId === parseInt(json.data[json.data.length - 1].id)) {
@@ -3151,6 +3225,81 @@ startLayout("Chat — " . htmlspecialchars($team['name']), $user, false);
         return (str || '').replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
+    function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; ++i) {
+            outputArray[i] = rawData.charCodeAt(i);
+        }
+        return outputArray;
+    }
+
+    /* ══════════════ READ STATUS & NOTIFICATIONS ══════════════ */
+    async function markAsRead() {
+        try {
+            await fetch('/api/chat.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'mark_as_read',
+                    channel: currentChannel,
+                    channel_id: currentChannelId
+                })
+            });
+            // Update sidebar unread counts
+            loadChannels();
+            loadRecentDms();
+        } catch (e) {
+            console.error('markAsRead error:', e);
+        }
+    }
+
+    async function subscribeToPush() {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+        try {
+            const registration = await navigator.serviceWorker.ready;
+
+            // Check if already subscribed
+            const existingSub = await registration.pushManager.getSubscription();
+            if (existingSub) return;
+
+            // Public VAPID Key (Match with config.php)
+            const publicVapidKey = 'BOT34D3Wld3Hw7tnAThhk6XfrY3t-PZ1hMMr6BJJNC6oA0Yx9s6bw4NGF1J9AOvohWXt5y-BSOWXtK9LUftWj7E';
+            const convertedKey = urlBase64ToUint8Array(publicVapidKey);
+
+            const subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: convertedKey
+            });
+
+            await fetch('/api/push_subscription.php', {
+                method: 'POST',
+                body: JSON.stringify({ subscription }),
+                headers: { 'Content-Type': 'application/json' }
+            });
+            console.log('Background push notifications enabled');
+        } catch (e) {
+            console.warn('Push subscription failed:', e);
+        }
+    }
+
+    function showPushNotification(title, message) {
+        if (!("Notification" in window)) return;
+        if (Notification.permission === "granted") {
+            const n = new Notification(title, {
+                body: message,
+                icon: '/favicon.ico'
+            });
+            n.onclick = () => {
+                window.focus();
+                n.close();
+            };
+        }
+    }
+
     /* ══════════════ POLLING ══════════════ */
     let pollCounter = 0;
     function startPolling() {
@@ -3165,18 +3314,47 @@ startLayout("Chat — " . htmlspecialchars($team['name']), $user, false);
 
     /* ══════════════ BOOT ══════════════ */
     document.addEventListener('DOMContentLoaded', async () => {
+        // Request notification permission
+        if ("Notification" in window && Notification.permission !== "denied") {
+            Notification.requestPermission();
+        }
+
         await loadMembers();
         await loadRecentDms();
         await loadChannels();
+        await subscribeToPush();
 
-        if (channels.length > 0) {
-            const firstChan = channels.find(c => c.name === currentChannel) || channels[0];
-            // Reset to force update
-            currentChannel = null;
-            switchChannel(firstChan.name, firstChan.id || null);
-        } else {
-            currentChannel = null;
-            switchChannel('General', null);
+        const saved = localStorage.getItem('chat_active_view');
+        let restored = false;
+
+        if (saved) {
+            try {
+                const data = JSON.parse(saved);
+                if (data.type === 'dm') {
+                    switchToDM(data.userId, data.name);
+                    restored = true;
+                } else if (data.type === 'channel') {
+                    const ch = channels.find(c => c.name === data.name);
+                    if (ch) {
+                        currentChannel = null; // force reload
+                        switchChannel(ch.name, ch.id || null);
+                        restored = true;
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to restore chat state:', e);
+            }
+        }
+
+        if (!restored) {
+            if (channels.length > 0) {
+                const firstChan = channels.find(c => c.name === 'General') || channels[0];
+                currentChannel = null;
+                switchChannel(firstChan.name, firstChan.id || null);
+            } else {
+                currentChannel = null;
+                switchChannel('General', null);
+            }
         }
     });
 </script>

@@ -1,0 +1,23 @@
+{
+  "name": "Turtledot CRM",
+  "short_name": "Turtledot",
+  "description": "Professional Lead Management and Real-time Chat Workspace",
+  "start_url": "/manage_teams.php",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#10b981",
+  "icons": [
+    {
+      "src": "/assets/images/turtle_logo_192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/images/turtle_logo_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
