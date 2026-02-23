@@ -175,6 +175,21 @@ try {
                     }
                 }
 
+                // Find and delete all files in this channel before clearing messages
+                $fStmt = $pdo->prepare(strpos($channel, 'dm-') === 0
+                    ? "SELECT message FROM chat_messages WHERE channel = ?"
+                    : "SELECT message FROM chat_messages WHERE team_id = ? AND channel = ?");
+
+                if (strpos($channel, 'dm-') === 0) {
+                    $fStmt->execute([$channel]);
+                } else {
+                    $fStmt->execute([$data['team_id'], $channel]);
+                }
+
+                while ($msg = $fStmt->fetchColumn()) {
+                    deleteFilesFromMessage($msg);
+                }
+
                 if (strpos($channel, 'dm-') === 0) {
                     $stmt = $pdo->prepare("DELETE FROM chat_messages WHERE channel = ?");
                     $stmt->execute([$channel]);
@@ -217,6 +232,15 @@ try {
             }
 
             if ($action === 'delete_message') {
+                // Fetch message content first to find any files
+                $fStmt = $pdo->prepare("SELECT message FROM chat_messages WHERE id = ? AND user_id = ?");
+                $fStmt->execute([$data['message_id'], $userId]);
+                $msgContent = $fStmt->fetchColumn();
+
+                if ($msgContent) {
+                    deleteFilesFromMessage($msgContent);
+                }
+
                 $stmt = $pdo->prepare("DELETE FROM chat_messages WHERE id = ? AND user_id = ?");
                 $stmt->execute([$data['message_id'], $userId]);
                 echo json_encode(['success' => true]);
@@ -275,6 +299,12 @@ try {
                     if ($files['error'][$i] === UPLOAD_ERR_OK) {
                         $origName = basename($files['name'][$i]);
                         $cleanName = time() . '_' . preg_replace("/[^a-zA-Z0-9._-]/", "_", $origName);
+
+                        $uploadDir = __DIR__ . '/../uploads/chat/';
+                        if (!file_exists($uploadDir)) {
+                            mkdir($uploadDir, 0777, true);
+                        }
+
                         $path = 'uploads/chat/' . $cleanName;
                         if (move_uploaded_file($files['tmp_name'][$i], __DIR__ . '/../' . $path)) {
                             $attachments[] = "[attachment:/$path]";
@@ -285,6 +315,12 @@ try {
                 if ($files['error'] === UPLOAD_ERR_OK) {
                     $origName = basename($files['name']);
                     $cleanName = time() . '_' . preg_replace("/[^a-zA-Z0-0._-]/", "_", $origName);
+
+                    $uploadDir = __DIR__ . '/../uploads/chat/';
+                    if (!file_exists($uploadDir)) {
+                        mkdir($uploadDir, 0777, true);
+                    }
+
                     $path = 'uploads/chat/' . $cleanName;
                     if (move_uploaded_file($files['tmp_name'], __DIR__ . '/../' . $path)) {
                         $attachments[] = "[attachment:/$path]";
@@ -351,4 +387,28 @@ try {
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+}
+
+/**
+ * Helper to delete physical files from a message string
+ */
+function deleteFilesFromMessage($message)
+{
+    if (empty($message))
+        return;
+
+    // Find all [attachment:/path/to/file] tags
+    preg_match_all('/\[attachment:(.*?)\]/', $message, $matches);
+
+    if (!empty($matches[1])) {
+        foreach ($matches[1] as $relativeVisiblePath) {
+            // Convert /uploads/chat/... to physical absolute path
+            // The path in message starts with / (e.g. /uploads/chat/...)
+            $physicalPath = __DIR__ . '/..' . $relativeVisiblePath;
+
+            if (file_exists($physicalPath)) {
+                @unlink($physicalPath);
+            }
+        }
+    }
 }
