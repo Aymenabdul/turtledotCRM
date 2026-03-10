@@ -179,8 +179,9 @@
             <button id="sidebarToggle" class="text-gray-600 focus:outline-none">
                 <i class="fas fa-bars text-xl"></i>
             </button>
-            <h1 class="text-lg font-semibold text-gray-800">TurtleDot</h1>
-            <div class="w-8"></div> <!-- Spacer -->
+            <div class="flex items-center gap-2">
+                <img src="/assets/images/turtle_logo.png" alt="Turtle Symbol" class="h-8 w-auto">
+            </div>
         </header>
 
         <!-- Content Project Area -->

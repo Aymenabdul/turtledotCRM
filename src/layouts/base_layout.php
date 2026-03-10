@@ -140,7 +140,6 @@ function startLayout($pageTitle = 'Turtle Dot', $user = null, $includeNavbar = t
                 </div>
                 <div class="mobile-header-logos">
                     <img src="/assets/images/turtle_logo.png" alt="Turtle Symbol" class="mobile-header-icon">
-                    <div class="mobile-header-text" aria-label="Turtle Dot"></div>
                 </div>
             </div>
             <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileSidebar()"></div>

@@ -916,6 +916,7 @@ body {
     max-width: 1400px;
     width: 100%;
     min-width: 0;
+    margin: 0 auto;
 }
 
 /* ===== Utility Classes ===== */
@@ -1190,15 +1191,18 @@ tbody tr:hover {
 }
 
 .grid-2 {
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    justify-content: center;
 }
 
 .grid-3 {
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    justify-content: center;
 }
 
 .grid-4 {
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    justify-content: center;
 }
 
 /* Flex Utilities */
@@ -1431,9 +1435,16 @@ tbody tr:hover {
         box-shadow: 20px 0 50px rgba(0, 0, 0, 0.15);
     }
 
+    body {
+        display: block;
+        overflow-x: hidden;
+        width: 100%;
+    }
+
     .main-wrapper {
         margin-left: 0 !important;
         padding-top: 64px;
+        width: 100%;
     }
 
     @supports (padding-top: env(safe-area-inset-top)) {
@@ -1550,7 +1561,10 @@ tbody tr:hover {
     }
 
     .main-content {
-        padding: 1.5rem;
+        padding: 1rem;
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
     }
 
     .grid-2,

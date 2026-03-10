@@ -90,3 +90,53 @@
     max-width: 400px;
     margin: 0 auto;
 }
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .user-welcome-card {
+        text-align: center;
+        width: 100%;
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    .user-welcome-card .card-title {
+        font-size: 1.75rem;
+    }
+
+    .user-welcome-card .card-subtitle {
+        font-size: 1rem;
+    }
+
+    .tool-card {
+        width: 100%;
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    .tool-card-content {
+        align-items: center;
+        text-align: center;
+    }
+
+    .tool-icon-wrapper {
+        width: 60px;
+        height: 60px;
+        font-size: 1.75rem;
+    }
+
+    .tool-launch-btn {
+        justify-content: center;
+        width: 100%;
+        padding: 0.75rem;
+        background: #ecfdf5;
+        border-radius: 10px;
+        margin-top: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .user-welcome-card .card-title {
+        font-size: 1.5rem;
+    }
+}

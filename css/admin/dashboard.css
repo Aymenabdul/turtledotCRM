@@ -284,3 +284,43 @@
 #content-area::-webkit-scrollbar {
     display: none;
 }
+
+@media (max-width: 768px) {
+    .welcome-card {
+        text-align: center;
+        border-left: none;
+        border-top: 5px solid var(--primary);
+    }
+
+    .welcome-card .card-title {
+        font-size: 1.5rem;
+    }
+
+    .stat-value {
+        font-size: 1.75rem;
+    }
+
+    .stat-card {
+        padding: 1.25rem !important;
+    }
+
+    .stat-icon-wrapper {
+        width: 48px;
+        height: 48px;
+        font-size: 1.25rem;
+    }
+
+    .squad-metric-item div {
+        font-size: 1.25rem !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .stat-value {
+        font-size: 1.5rem;
+    }
+
+    .card-title {
+        font-size: 1.25rem !important;
+    }
+}
