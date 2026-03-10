@@ -287,14 +287,15 @@ body {
 }
 
 .sidebar-title {
-    height: 110px;
+    height: 100px;
     width: auto;
     object-fit: contain;
-    margin-top: 20px;
-    margin-left: -17px;
+    margin: 0;
     opacity: 1;
     filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.5));
     transition: opacity var(--transition-base);
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
 }
 
 .sidebar.collapsed .sidebar-header {
@@ -1383,7 +1384,7 @@ tbody tr:hover {
 
 .mobile-header-text {
     height: 24px;
-    width: 130px;
+    width: 120px;
     /* Fixed width to prevent flex bug */
     background-image: url('/assets/images/textlogo.png');
     background-size: contain;
@@ -1391,6 +1392,8 @@ tbody tr:hover {
     background-position: left center;
     filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.12));
     flex-shrink: 0;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
 }
 
 /* Responsive */
@@ -1406,6 +1409,21 @@ tbody tr:hover {
     .sidebar {
         transform: translateX(-100%);
         box-shadow: none;
+        padding-top: 0;
+    }
+
+    @supports (padding-top: env(safe-area-inset-top)) {
+        .sidebar {
+            padding-top: env(safe-area-inset-top);
+        }
+    }
+
+    @media all and (display-mode: standalone) {
+        @supports (-webkit-touch-callout: none) {
+            .sidebar {
+                padding-top: max(44px, env(safe-area-inset-top));
+            }
+        }
     }
 
     .sidebar.sidebar-visible {

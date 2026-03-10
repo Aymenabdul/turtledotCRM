@@ -2226,6 +2226,21 @@
         z-index: 2000;
         transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         box-shadow: 20px 0 50px rgba(0, 0, 0, 0.2);
+        padding-top: 0;
+    }
+
+    @supports (padding-top: env(safe-area-inset-top)) {
+        .chat-sidebar {
+            padding-top: env(safe-area-inset-top);
+        }
+    }
+
+    @media all and (display-mode: standalone) {
+        @supports (-webkit-touch-callout: none) {
+            .chat-sidebar {
+                padding-top: max(44px, env(safe-area-inset-top));
+            }
+        }
     }
 
     .chat-root.sidebar-open .chat-sidebar {
